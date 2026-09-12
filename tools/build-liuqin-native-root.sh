@@ -80,6 +80,10 @@ stage_copy() {
 }
 
 stage_debs() {
+	if [ "${LIUQIN_ROOT_MOUNT_NS:-}" != 1 ]; then
+		LIUQIN_ROOT_MOUNT_NS=1 unshare --mount --propagation private sh "$0" debs
+		return
+	fi
 	[ -x "$root/usr/lib/systemd/systemd" ] || die 'run the copy stage first'
 	for deb in firmware:all device-support:arm64 sensors:arm64 kernel:arm64; do
 		name=liuqin-${deb%:*}; arch=${deb#*:}
@@ -94,11 +98,14 @@ stage_debs() {
 #!/bin/sh
 set -eux
 cp -L /etc/resolv.conf.test /etc/resolv.conf
-# The command-not-found index rebuild hook costs minutes under qemu emulation
-# and buys nothing in an assembly chroot.
-no_hooks='-o APT::Update::Post-Invoke-Success=true -o APT::Update::Post-Invoke=true -o DPkg::Post-Invoke=true'
-apt-get update -o Acquire::Retries=2 $no_hooks >/dev/null
-apt-get install -y --no-install-recommends $no_hooks libqrtr1 libprotobuf-c1 >/dev/null
+# APT hooks are lists; scalar command-line overrides do not clear them.
+cat >/tmp/liuqin-apt.conf <<'APT'
+#clear APT::Update::Post-Invoke-Success;
+#clear APT::Update::Post-Invoke;
+#clear DPkg::Post-Invoke;
+APT
+apt-get -c /tmp/liuqin-apt.conf update >/dev/null
+apt-get -c /tmp/liuqin-apt.conf install -y --no-install-recommends libqrtr1 libprotobuf-c1 >/dev/null
 dpkg -i /tmp/liuqin-debs/liuqin-firmware_*_all.deb \
 	/tmp/liuqin-debs/liuqin-device-support_*_arm64.deb \
 	/tmp/liuqin-debs/liuqin-sensors_*_arm64.deb \
@@ -114,11 +121,16 @@ EOF
 		"$root/var/lib/apt/lists" "$root/var/cache/apt/archives"
 	mount --bind "$apt_cache/lists" "$root/var/lib/apt/lists"
 	mount --bind "$apt_cache/archives" "$root/var/cache/apt/archives"
-	trap 'umount "$root/var/cache/apt/archives" "$root/var/lib/apt/lists" 2>/dev/null || :' EXIT
+	mount -t proc -o ro proc "$root/proc"
+	[ ! -e "$root/usr/sbin/policy-rc.d" ] || die 'unexpected existing service-start policy'
+	printf '#!/bin/sh\nexit 101\n' >"$root/usr/sbin/policy-rc.d"
+	chmod 0755 "$root/usr/sbin/policy-rc.d"
+	trap 'rm -f "$root/usr/sbin/policy-rc.d"; umount "$root/proc" "$root/var/cache/apt/archives" "$root/var/lib/apt/lists" 2>/dev/null || :' EXIT
 	chroot "$root" /bin/sh /root/native-assemble.sh
-	umount "$root/var/cache/apt/archives" "$root/var/lib/apt/lists"
+	umount "$root/proc" "$root/var/cache/apt/archives" "$root/var/lib/apt/lists"
 	trap - EXIT
-	rm -f "$root/root/native-assemble.sh" "$root/etc/resolv.conf.test"
+	rm -f "$root/root/native-assemble.sh" "$root/etc/resolv.conf.test" \
+		"$root/tmp/liuqin-apt.conf" "$root/usr/sbin/policy-rc.d"
 	rm -rf "$root/tmp/liuqin-debs"
 	# cp -L inside the chroot wrote through the distro resolver symlink into the
 	# run/ stub; restore the pinned empty placeholder and assert the symlink
