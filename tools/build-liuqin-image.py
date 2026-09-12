@@ -91,15 +91,15 @@ def main():
                      'installer.img': out / 'installer/boot-liuqin-native.img',
                      'rootfs.tar.gz': out / 'root/rootfs.tar.gz',
                      'install.py': project / 'tools/install-liuqin.py',
-                     'INSTALL.md': project / 'docs/INSTALL-TESTING.md',
-                     'INSTALL.zh-CN.md': project / 'docs/INSTALL-TESTING.zh-CN.md',
+                     'INSTALL-TESTING.md': project / 'docs/INSTALL-TESTING.md',
+                     'INSTALL-TESTING.zh-CN.md': project / 'docs/INSTALL-TESTING.zh-CN.md',
                      'NOTICE': project / 'NOTICE', 'LICENSE': project / 'LICENSE'}
             hashes = {}
             for name, source in files.items():
-                if name in ('install.py', 'INSTALL.md', 'INSTALL.zh-CN.md', 'NOTICE', 'LICENSE'):
-                    shutil.copyfile(source, destination / name)
-                else:
+                if name in ('boot.img', 'installer.img', 'rootfs.tar.gz'):
                     os.link(source, destination / name)
+                else:
+                    shutil.copyfile(source, destination / name)
                 with source.open('rb') as stream:
                     hashes[name] = hashlib.file_digest(stream, 'sha256').hexdigest()
             metadata = {'device': 'liuqin', 'status': 'OFFLINE_ASSEMBLED',
