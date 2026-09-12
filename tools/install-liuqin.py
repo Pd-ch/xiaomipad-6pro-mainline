@@ -12,6 +12,7 @@ import re
 import shlex
 import socket
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -105,6 +106,7 @@ def main():
         parser.error('boot image exceeds the reported boot partition size')
     server = None
     try:
+        print('Booting the RAM installer...', flush=True)
         fastboot('boot', str(bundle / 'installer.img'))
         deadline = time.monotonic() + 120
         while True:
@@ -130,6 +132,7 @@ def main():
         args.backup.mkdir(mode=0o700, parents=True)
         backups = {}
         for name in ('boot_a', 'boot_b', 'persist'):
+            print('Backing up and verifying ' + name + '...', flush=True)
             device = '/dev/disk/by-partlabel/' + name
             content = command(args.device_address,
                               'set -e; test -b ' + device + '; /bin/busybox base64 ' + device, 600)
@@ -147,6 +150,7 @@ def main():
         url = f'http://{args.host_address}:{server.server_port}/rootfs.tar.gz'
         install = ['sh', '/usr/lib/liuqin/install-root.sh', boot_id, url,
                    manifest['files']['rootfs.tar.gz'], 'ERASE-LIUQIN-USERDATA']
+        print('Installing Ubuntu; userdata will be erased after input checks.', flush=True)
         result = command(args.device_address, shlex.join(install), 3600)
         if b'liuqin-install: ROOT_INSTALLED' not in result:
             raise RuntimeError('Device did not confirm root installation')
@@ -159,6 +163,7 @@ def main():
             time.sleep(2)
         else:
             raise RuntimeError('Return to Fastboot not observed; boot partition was not flashed')
+        print('Writing the matching boot image to boot_a...', flush=True)
         fastboot('flash', 'boot_a', str(bundle / 'boot.img'))
         fastboot('reboot')
         print('Installation commands completed. First-boot verification is still required.')
@@ -169,4 +174,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except (OSError, RuntimeError, ValueError, KeyError, subprocess.SubprocessError) as error:
+        sys.exit('Installation stopped: ' + str(error))
