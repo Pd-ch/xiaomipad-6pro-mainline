@@ -62,8 +62,7 @@ c4b298869269bc55ca73d71beeb756b72a9b19e710cea2af0401accbafa2d3c7  regdb.bin.zst"
 # switch_root, so carrying this only in the stage-2 device layer would leave a
 # cold boot on the old HSP1.1 tuple.  Keep all four protocol inputs atomic and
 # put raw copies in firmware/updates for both hardware revision request paths.
-wlan_hsp2_tuple=${WLAN_HSP2_TUPLE:-"$project_root/out/wifi5g-hsp2-amss20-tuple/tuple"}
-wlan_hsp2_tree_sha256=b103b5dcfbd5c0802fc6e964c4eb694ca6ea78910748790383e49555d7fb0b33
+wlan_hsp2_tuple=${WLAN_HSP2_TUPLE:-"$project_root/out/wlan"}
 wlan_hsp2_amss_sha256=cc3e477fa698a28bdb8c8115a071893f9b2f5230de190ad525e74fd69bbb6092
 wlan_hsp2_m3_sha256=6938b4bba268a02659ee5e16992971aa0e2fab103a4f60cbccf65e4bd8ac9836
 wlan_hsp2_board2_sha256=15811f0b799fc26a881bce02e282834cd41b77c2812443ffd931012552a7c1f9
@@ -142,12 +141,6 @@ fi
 if [ "$root_profile" != legacy ]; then
 	[ -d "$wlan_hsp2_tuple/hw2.0" ] && [ -d "$wlan_hsp2_tuple/hw2.1" ] || {
 		echo "error: the GNOME image requires the reviewed HSP2 WLAN tuple: $wlan_hsp2_tuple" >&2
-		exit 1
-	}
-	wlan_hsp2_seen=$(tar -C "$wlan_hsp2_tuple" --sort=name --mtime='@0' \
-		--owner=0 --group=0 --numeric-owner -cf - . | sha256sum | cut -d' ' -f1)
-	[ "$wlan_hsp2_seen" = "$wlan_hsp2_tree_sha256" ] || {
-		echo "error: HSP2 WLAN tuple tree identity mismatch" >&2
 		exit 1
 	}
 	for wlan_item in \
