@@ -37,10 +37,14 @@ mounted=false
 opened=false
 cleanup() {
 	sync
-	if [ "$mounted" = true ]; then umount /mnt/install || return; fi
+	if [ "$mounted" = true ]; then
+		umount /mnt/install || return 1
+		mounted=false
+	fi
 	if [ "$opened" = true ]; then
 		/bin/busybox blockdev --setro /dev/sda35
 		/bin/busybox blockdev --setro /dev/sda
+		opened=false
 	fi
 	umount /run/persist
 }
@@ -67,4 +71,6 @@ tail -n +2 /etc/liuqin-native-root.contract | while read -r expected path; do
 	actual=$(/bin/busybox sha256sum "/mnt/install/native-root$path" | /bin/busybox cut -d' ' -f1)
 	[ "$actual" = "$expected" ] || die "root contract mismatch: $path"
 done
+cleanup
+trap - EXIT HUP INT TERM
 printf 'liuqin-install: ROOT_INSTALLED\n'
