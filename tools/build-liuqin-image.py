@@ -92,10 +92,11 @@ def main():
                      'rootfs.tar.gz': out / 'root/rootfs.tar.gz',
                      'install.py': project / 'tools/install-liuqin.py',
                      'INSTALL.md': project / 'docs/INSTALL-TESTING.md',
+                     'INSTALL.zh-CN.md': project / 'docs/INSTALL-TESTING.zh-CN.md',
                      'NOTICE': project / 'NOTICE', 'LICENSE': project / 'LICENSE'}
             hashes = {}
             for name, source in files.items():
-                if name in ('install.py', 'INSTALL.md', 'NOTICE', 'LICENSE'):
+                if name in ('install.py', 'INSTALL.md', 'INSTALL.zh-CN.md', 'NOTICE', 'LICENSE'):
                     shutil.copyfile(source, destination / name)
                 else:
                     os.link(source, destination / name)

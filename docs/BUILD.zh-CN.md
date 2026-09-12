@@ -156,4 +156,4 @@ native boot 构建器直接使用指定内核的 Image、DTB，以及已装配�
 不是可安装的 Ubuntu 发行包。内核仓库的提交构建与主项目的锁定版本构建共用同一入口。
 整包装配使用 `tools/build-liuqin-image.py`，支持单阶段续跑；GitHub 整包任务需要配置专用构建机，
 默认手动触发，可在配置完成后启用 main 更新自动装配。详见[CI 配置](CI.md)。
-测试安装器说明见[安装测试](INSTALL-TESTING.md)，尚未经过最终真机验收，不作为稳定安装发布。
+测试安装器说明见[安装测试](INSTALL-TESTING.zh-CN.md)，尚未经过最终真机验收，不作为稳定安装发布。
