@@ -119,7 +119,15 @@ def main():
                 if time.monotonic() >= deadline:
                     raise RuntimeError('Installer USB channel did not become ready; no formatting performed')
                 time.sleep(2)
-        release = command(args.device_address, 'uname -r').decode().strip()
+        def remote(text, timeout=60):
+            guard = 'test "$(cat /proc/sys/kernel/random/boot_id)" = ' + shlex.quote(boot_id)
+            return command(args.device_address, guard + ' && ' + text, timeout)
+
+        cmdline = shlex.split(remote('cat /proc/cmdline').decode())
+        serial = next((item.split('=', 1)[1] for item in cmdline if item.startswith('androidboot.serialno=')), '')
+        if serial != args.serial:
+            raise RuntimeError('RAM device serial does not match the selected Fastboot device')
+        release = remote('uname -r').decode().strip()
         if release != manifest['kernel_release']:
             raise RuntimeError('Installer kernel does not match this bundle')
         if not args.host_address:
@@ -134,27 +142,26 @@ def main():
         for name in ('boot_a', 'boot_b', 'persist'):
             print('Backing up and verifying ' + name + '...', flush=True)
             device = '/dev/disk/by-partlabel/' + name
-            content = command(args.device_address,
-                              'set -e; test -b ' + device + '; /bin/busybox base64 ' + device, 600)
+            content = remote('test -b ' + device + ' && /bin/busybox base64 ' + device, 600)
             target = args.backup / (name + '.img')
             target.write_bytes(base64.b64decode(content, validate=False))
             target.chmod(0o600)
-            expected = command(args.device_address, '/bin/busybox sha256sum ' + device, 120).decode().split()[0]
+            expected = remote('/bin/busybox sha256sum ' + device, 120).decode().split()[0]
             if sha(target) != expected:
                 raise RuntimeError('Backup verification failed: ' + name)
             backups[target.name] = expected
         (args.backup / 'SHA256SUMS').write_text(''.join(f'{h}  {n}\n' for n, h in backups.items()))
-        available = int(command(args.device_address, "awk '/^MemAvailable:/ {print $2}' /proc/meminfo").decode()) * 1024
+        available = int(remote("awk '/^MemAvailable:/ {print $2}' /proc/meminfo").decode()) * 1024
         if (bundle / 'rootfs.tar.gz').stat().st_size + 512 * 1024**2 > available:
             raise RuntimeError('Insufficient RAM to stage the root archive; userdata remains unchanged')
         url = f'http://{args.host_address}:{server.server_port}/rootfs.tar.gz'
         install = ['sh', '/usr/lib/liuqin/install-root.sh', boot_id, url,
                    manifest['files']['rootfs.tar.gz'], 'ERASE-LIUQIN-USERDATA']
         print('Installing Ubuntu; userdata will be erased after input checks.', flush=True)
-        result = command(args.device_address, shlex.join(install), 3600)
+        result = remote(shlex.join(install), 3600)
         if b'liuqin-install: ROOT_INSTALLED' not in result:
             raise RuntimeError('Device did not confirm root installation')
-        command(args.device_address, "(sleep 2; /usr/sbin/liuqin-reboot bootloader) >/dev/null 2>&1 &")
+        remote("(sleep 2; /usr/sbin/liuqin-reboot bootloader) >/dev/null 2>&1 &")
         deadline = time.monotonic() + 90
         while time.monotonic() < deadline:
             devices = subprocess.check_output(['fastboot', 'devices'], text=True, timeout=10)

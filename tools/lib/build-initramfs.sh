@@ -82,8 +82,7 @@ dsp_firmware_dir=${DSP_FIRMWARE_DIR:-"$project_root/tools/local/firmware-liuqin/
 dsp_firmware_count=68
 dsp_firmware_set_sha256=7f9b43d3815b6592f541e0b870357010488980bc040b925e93bbf12d01282908
 slot_success_source="$project_root/device/boot/liuqin-mark-slot-successful.c"
-slot_success_gcc=${SLOT_SUCCESS_GCC:-"$project_root/tools/local/sysroot/usr/bin/aarch64-linux-gnu-gcc"}
-slot_success_gcc_lib=${SLOT_SUCCESS_GCC_LIB:-"$project_root/tools/local/sysroot/usr/lib/x86_64-linux-gnu"}
+slot_success_gcc=$(command -v "${SLOT_SUCCESS_GCC:-aarch64-linux-gnu-gcc}" || true)
 charger_mode_source="$project_root/device/charger-mode/liuqin-charger-mode"
 charger_key_source="$project_root/device/charger-mode/liuqin-charger-mode-power-key.c"
 charger_exit_source="$project_root/device/charger-mode/liuqin-charger-mode-exit.c"
@@ -459,8 +458,7 @@ if [ "$storage_mode" = persistent ]; then
 		cp "$native_root_contract" "$staging/etc/liuqin-native-root.contract"
 		chmod 0644 "$staging/etc/liuqin-native-root.contract"
 	fi
-	LD_LIBRARY_PATH="$slot_success_gcc_lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-		"$slot_success_gcc" -static -Os -s "$slot_success_source" \
+	"$slot_success_gcc" -static -Os -s "$slot_success_source" \
 		-o "$staging/bin/liuqin-mark-slot-successful"
 	chmod 0755 "$staging/bin/liuqin-mark-slot-successful"
 	if ! readelf -h "$staging/bin/liuqin-mark-slot-successful" | grep -q 'Machine:.*AArch64' ||
@@ -479,8 +477,7 @@ if [ "$charger_mode" = 1 ]; then
 		key) charger_source=$charger_key_source; charger_output=liuqin-charger-mode-power-key ;;
 		exit) charger_source=$charger_exit_source; charger_output=liuqin-charger-mode-exit ;;
 		esac
-		LD_LIBRARY_PATH="$slot_success_gcc_lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-			"$slot_success_gcc" -static -Os -s -Wall -Wextra -Werror \
+		"$slot_success_gcc" -static -Os -s -Wall -Wextra -Werror \
 			"$charger_source" -o "$staging/bin/$charger_output"
 		chmod 0755 "$staging/bin/$charger_output"
 		if ! readelf -h "$staging/bin/$charger_output" | grep -q 'Machine:.*AArch64' ||
