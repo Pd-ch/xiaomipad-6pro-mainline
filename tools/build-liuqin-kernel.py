@@ -7,6 +7,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -27,11 +28,17 @@ def main():
     parser.add_argument('--out', type=Path, default=project / 'out/kernel')
     parser.add_argument('--jobs', type=int, default=min(os.cpu_count() or 1, 12))
     parser.add_argument('--configure-only', action='store_true')
+    parser.add_argument('--revision', help='Exact development SHA; does not update the product lock')
     args = parser.parse_args()
     if args.jobs < 1:
         parser.error('--jobs must be positive')
     source, out = args.source.resolve(), args.out.resolve()
     lock = json.loads((project / 'kernel/source.json').read_text())
+    pinned_commit = lock['commit']
+    if args.revision:
+        if not re.fullmatch(r'[0-9a-f]{40}', args.revision):
+            parser.error('--revision must be a full commit SHA')
+        lock['commit'] = args.revision
     if out == source or source in out.parents:
         parser.error('--out must be outside the kernel source tree')
     if output('git', '-C', str(source), 'rev-parse', 'HEAD') != lock['commit']:
@@ -104,6 +111,8 @@ def main():
         public_info = {key: identity[key] for key in
                        ('commit', 'config_sha256', 'fragments', 'compiler_sha256',
                         'compiler_version', 'builder_sha256')}
+        public_info.update(product_kernel_commit=pinned_commit,
+                           build_kind='development' if args.revision else 'product-input')
         (out / 'build-info.json').write_text(json.dumps(public_info, indent=2) + '\n')
         paths.append('build-info.json')
         (out / 'SHA256SUMS').write_text(''.join(f'{digest(out / p)}  {p}\n' for p in paths))

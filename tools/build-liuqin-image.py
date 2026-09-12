@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+"""Assemble matching device packages, rootfs and boot from prepared inputs."""
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+import shutil
+from pathlib import Path
+import subprocess
+
+
+INPUTS = {
+    'UBUNTU_DESKTOP_ROOT', 'DESKTOP_ROOTFS_MANIFEST', 'FIRMWARE_POOL',
+    'FIRMWARE_TREE', 'FIRMWARE_MANIFEST_SHA256', 'AUDIO_TOPOLOGY',
+    'WLAN_HSP2_TUPLE', 'STOCK_OVERLAY_DIR', 'STOCK_BASE_DIR',
+    'SENSOR_STACK_TAR', 'SENSOR_STACK_SHA256', 'POWER_SETTINGS_BINARY',
+    'POWER_SETTINGS_MANIFEST', 'BUSYBOX', 'MKBOOTIMG_DIR',
+}
+
+
+def main():
+    project = Path(__file__).resolve().parents[1]
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--inputs', type=Path, required=True,
+                        help='Local JSON object of prepared-input environment variables')
+    parser.add_argument('--kernel-out', type=Path, required=True)
+    parser.add_argument('--out', type=Path, default=project / 'out/image')
+    parser.add_argument('--stage', choices=['all', 'modules', 'debs', 'copy', 'install',
+                                          'assemble', 'manifest', 'boot', 'runtime', 'installer',
+                                          'pack', 'bundle'], default='all')
+    args = parser.parse_args()
+    supplied = json.loads(args.inputs.read_text())
+    if set(supplied) != INPUTS or not all(isinstance(v, str) and v for v in supplied.values()):
+        parser.error('Input keys must match: ' + ', '.join(sorted(INPUTS)))
+    for key, value in supplied.items():
+        if not key.endswith('_SHA256') and not Path(value).exists():
+            parser.error('Prepared input missing: ' + key)
+    out, kernel = args.out.resolve(), args.kernel_out.resolve()
+    if project / 'out' not in out.parents:
+        parser.error('--out must be inside the project out directory')
+    lock = json.loads((project / 'kernel/source.json').read_text())
+    info = json.loads((kernel / 'build-info.json').read_text())
+    if info['commit'] != lock['commit'] or info.get('build_kind') != 'product-input':
+        parser.error('Kernel build must match the product lock, not a development override')
+    if info['config_sha256'] != lock['config_sha256']:
+        parser.error('Kernel configuration does not match the product lock')
+    subprocess.run(['sha256sum', '-c', '--quiet', 'SHA256SUMS'], cwd=kernel, check=True)
+    env = os.environ.copy()
+    env.update(supplied, KERNEL_SOURCE=str(project.parent / 'linux-sm8450-liuqin'),
+               KERNEL_DIR=str(project.parent / 'linux-sm8450-liuqin'), KERNEL_COMMIT=lock['commit'],
+               KERNEL_OUT=str(kernel), KERNEL_IMAGE=str(kernel / 'arch/arm64/boot/Image'),
+               KERNEL_DTB=str(kernel / 'arch/arm64/boot/dts' / lock['dtb']),
+               KERNEL_MODULES_DIR=str(out / 'modules'), DEBS_DIR=str(out / 'debs'),
+               NATIVE_ROOT_HASHES=str(out / 'root/native-root.hashes'))
+    stages = {
+        'modules': ('build-liuqin-kernel-modules.sh', [], out / 'modules'),
+        'debs': ('build-liuqin-debs.sh', ['all'], out / 'debs'),
+        'copy': ('build-liuqin-native-root.sh', ['copy'], out / 'root'),
+        'install': ('build-liuqin-native-root.sh', ['debs'], out / 'root'),
+        'assemble': ('build-liuqin-native-root.sh', ['assemble'], out / 'root'),
+        'manifest': ('build-liuqin-native-root.sh', ['manifest'], out / 'root'),
+        'boot': ('build-liuqin-native-boot.sh', [], out / 'boot'),
+        'runtime': ('lib/build-installer-runtime.py', ['--root', supplied['UBUNTU_DESKTOP_ROOT'],
+                                                     '--out', str(out / 'installer-runtime')], out / 'installer-runtime'),
+        'installer': ('build-liuqin-native-boot.sh', [], out / 'installer'),
+        'pack': ('build-liuqin-native-root.sh', ['pack'], out / 'root'),
+    }
+    selected = [*stages, 'bundle'] if args.stage == 'all' else [args.stage]
+    if args.stage == 'all' and out.exists():
+        parser.error('all requires a fresh output; resume with --stage instead')
+    out.mkdir(parents=True, exist_ok=True)
+    owner = (out / '.image.lock').open('a')
+    try:
+        fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        parser.error('another assembly owns this output')
+    for stage in selected:
+        if stage == 'bundle':
+            destination = out / 'bundle'
+            destination.mkdir()
+            files = {'boot.img': out / 'boot/boot-liuqin-native.img',
+                     'installer.img': out / 'installer/boot-liuqin-native.img',
+                     'rootfs.tar.gz': out / 'root/rootfs.tar.gz',
+                     'install.py': project / 'tools/install-liuqin.py',
+                     'INSTALL.md': project / 'docs/INSTALL-TESTING.md',
+                     'NOTICE': project / 'NOTICE', 'LICENSE': project / 'LICENSE'}
+            hashes = {}
+            for name, source in files.items():
+                if name in ('install.py', 'INSTALL.md', 'NOTICE', 'LICENSE'):
+                    shutil.copyfile(source, destination / name)
+                else:
+                    os.link(source, destination / name)
+                with source.open('rb') as stream:
+                    hashes[name] = hashlib.file_digest(stream, 'sha256').hexdigest()
+            metadata = {'device': 'liuqin', 'status': 'OFFLINE_ASSEMBLED',
+                        'kernel_commit': lock['commit'],
+                        'project_commit': subprocess.check_output(['git', '-C', str(project), 'rev-parse', 'HEAD'], text=True).strip(),
+                        'project_dirty': bool(subprocess.check_output(['git', '-C', str(project), 'status', '--porcelain'])),
+                        'kernel_release': (kernel / 'include/config/kernel.release').read_text().strip(),
+                        'files': hashes}
+            (destination / 'bundle.json').write_text(json.dumps(metadata, indent=2) + '\n')
+            hashes['bundle.json'] = hashlib.sha256((destination / 'bundle.json').read_bytes()).hexdigest()
+            (destination / 'SHA256SUMS').write_text(''.join(f'{h}  {n}\n' for n, h in hashes.items()))
+            continue
+        script, arguments, destination = stages[stage]
+        print('Stage: ' + stage, flush=True)
+        stage_env = dict(env, OUT_DIR=str(destination))
+        if stage == 'installer':
+            stage_env['INSTALLER_RUNTIME'] = str(out / 'installer-runtime')
+        subprocess.run(['python3' if script.endswith('.py') else 'sh',
+                        str(project / 'tools' / script), *arguments], env=stage_env, check=True)
+    print('Selected assembly stages completed; device validation is separate')
+
+
+if __name__ == '__main__':
+    main()

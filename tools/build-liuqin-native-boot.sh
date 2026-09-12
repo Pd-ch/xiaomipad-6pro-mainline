@@ -60,12 +60,15 @@ if matches != [wanted]:
     raise SystemExit('root filesystem and kernel release do not match')
 PY
 source_epoch=$(git -C "$kernel_source" show -s --format=%ct HEAD)
+charger_mode=auto
+if [ -n "${INSTALLER_RUNTIME:-}" ]; then charger_mode=0; fi
 mkdir -p "$out_dir"
 
 python3 "$project_root/tools/lib/build-root-contract.py" --profile native \
 	--device-layer-manifest "$native_root_hashes" --output "$out_dir/native-root.contract"
 
 LIUQIN_STORAGE_MODE=persistent LIUQIN_ROOT_PROFILE=native LIUQIN_EMBED_ROOTFS=0 \
+	LIUQIN_CHARGER_MODE="$charger_mode" \
 	ROOTFS=none SOURCE_DATE_EPOCH="$source_epoch" SLOT_SUCCESS_GCC="$slot_cc" \
 	TOUCH_FIRMWARE_DIR="$firmware_pool/touch-nt36532/vendor/firmware" \
 	BT_FIRMWARE_DIR="$firmware_pool/bt-qca6490/vendor/bt_firmware/image" \

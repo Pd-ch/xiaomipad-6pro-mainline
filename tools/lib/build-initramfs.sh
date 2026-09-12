@@ -576,6 +576,20 @@ for applet in basename blockdev cat chmod chroot cp cttyhack cut dmesg findfs \
 done
 ln -s ../bin/busybox "$staging/sbin/mdev"
 
+if [ -n "${INSTALLER_RUNTIME:-}" ]; then
+	[ -x "$INSTALLER_RUNTIME/usr/bin/tar" ] && [ -x "$INSTALLER_RUNTIME/usr/sbin/mkfs.ext4" ] ||
+		{ echo 'installer runtime is incomplete' >&2; exit 1; }
+	cp -a "$INSTALLER_RUNTIME"/. "$staging"/
+	mkdir -p "$staging/usr/lib/liuqin"
+	cp "$project_root/tools/lib/install-root.sh" "$staging/usr/lib/liuqin/install-root.sh"
+	cp "$project_root/tools/provision-liuqin-from-persist.sh" "$staging/usr/lib/liuqin/provision.sh"
+	printf 'readonly\n' >"$staging/etc/liuqin-storage-mode"
+	printf 'liuqin\n' >"$staging/etc/liuqin-installer"
+	chmod 0644 "$staging/etc/liuqin-storage-mode" "$staging/etc/liuqin-installer"
+	# GNU tar invokes gzip externally; do not depend on ash's applet dispatch.
+	ln -s busybox "$staging/bin/gzip"
+fi
+
 find "$staging" -exec touch -h -d "@$source_epoch" {} +
 
 (

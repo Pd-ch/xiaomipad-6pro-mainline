@@ -1,0 +1,169 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+"""Install a verified liuqin bundle from a Linux host over USB networking."""
+import argparse
+import base64
+import functools
+import hashlib
+import http.server
+import json
+from pathlib import Path
+import re
+import shlex
+import socket
+import subprocess
+import threading
+import time
+import uuid
+
+
+def sha(path):
+    with path.open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
+def command(address, text, timeout=60):
+    """Use exact line markers, not command echo, to delimit one shell result."""
+    token = 'LIUQIN_' + uuid.uuid4().hex
+    start, end = token + '_START', token + '_END'
+    with socket.create_connection((address, 2323), timeout=10) as connection:
+        connection.settimeout(1)
+        # BusyBox telnetd announces WILL ECHO / WILL SGA / DO NAWS.
+        connection.sendall(b'\xff\xfd\x01\xff\xfd\x03\xff\xfc\x1f')
+        connection.sendall(("stty -echo; printf '\\n%s\\n' " + shlex.quote(start) +
+                            '; sh -c ' + shlex.quote(text) +
+                            "; result=$?; printf '\\n%s %s\\n' " + shlex.quote(end) +
+                            ' "$result"\n').encode())
+        buffer = bytearray()
+        deadline = time.monotonic() + timeout
+        pattern = re.compile(rb'(?:^|\n)' + end.encode() + rb' ([0-9]+)\r?\n')
+        while time.monotonic() < deadline:
+            try:
+                chunk = connection.recv(65536)
+            except socket.timeout:
+                continue
+            if not chunk:
+                break
+            buffer.extend(chunk)
+            # Backup output can be large; the terminator is always at the tail.
+            match = pattern.search(buffer, max(0, len(buffer) - 512))
+            if match:
+                first = re.search(rb'(?:^|\n)' + start.encode() + rb'\r?\n', buffer)
+                if not first or int(match[1]) != 0:
+                    raise RuntimeError(bytes(buffer[-4096:]).decode(errors='replace'))
+                return bytes(buffer[first.end():match.start()]).replace(b'\r\n', b'\n').removesuffix(b'\r')
+        raise RuntimeError('RAM command timed out or connection closed; installation stopped')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--bundle', type=Path, required=True)
+    parser.add_argument('--check', action='store_true', help='Verify local files without accessing any device')
+    parser.add_argument('--serial')
+    parser.add_argument('--host-address', help='Host IPv4 address on the tablet USB network')
+    parser.add_argument('--device-address', default='192.168.7.2')
+    parser.add_argument('--backup', type=Path)
+    parser.add_argument('--erase-userdata', action='store_true')
+    parser.add_argument('--allow-unverified', action='store_true', help='Explicitly test an offline-only bundle')
+    args = parser.parse_args()
+    bundle = args.bundle.resolve()
+    manifest = json.loads((bundle / 'bundle.json').read_text())
+    if manifest['device'] != 'liuqin':
+        parser.error('wrong device bundle')
+    for name in ('boot.img', 'installer.img', 'rootfs.tar.gz'):
+        if sha(bundle / name) != manifest['files'][name]:
+            parser.error('bundle checksum mismatch: ' + name)
+    if args.check:
+        print('Local bundle checksums verified; no device access')
+        return
+    if manifest['status'] != 'DEVICE_TESTED' and not args.allow_unverified:
+        parser.error('bundle has not passed device testing; use --allow-unverified only for attended tests')
+    if not all((args.serial, args.backup, args.erase_userdata)):
+        parser.error('--serial, --backup and --erase-userdata are required')
+    if args.backup.exists():
+        parser.error('--backup must be a new directory')
+    args.backup = args.backup.resolve()
+    if args.backup == bundle or bundle in args.backup.parents:
+        parser.error('private backups must be outside the served bundle directory')
+    if args.host_address:
+        socket.inet_pton(socket.AF_INET, args.host_address)
+    socket.inet_pton(socket.AF_INET, args.device_address)
+
+    def fastboot(*arguments):
+        result = subprocess.run(['fastboot', '-s', args.serial, *arguments], check=True,
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=180)
+        return result.stdout
+
+    for name, value in (('product', 'liuqin'), ('unlocked', 'yes')):
+        if not re.search(r'\b' + name + r':\s*' + value + r'\b', fastboot('getvar', name)):
+            parser.error('Fastboot device check failed: ' + name)
+    # The current boot contract supports slot A only; never switch slots implicitly.
+    if not re.search(r'current-slot:\s*a\b', fastboot('getvar', 'current-slot')):
+        parser.error('slot A must be active before this installation')
+    server = None
+    try:
+        fastboot('boot', str(bundle / 'installer.img'))
+        deadline = time.monotonic() + 120
+        while True:
+            try:
+                boot_id = command(args.device_address,
+                                  'test "$(cat /etc/liuqin-installer)" = liuqin && cat /proc/sys/kernel/random/boot_id').decode().strip()
+                uuid.UUID(boot_id)
+                break
+            except (OSError, RuntimeError, ValueError):
+                if time.monotonic() >= deadline:
+                    raise RuntimeError('Installer USB channel did not become ready; no formatting performed')
+                time.sleep(2)
+        release = command(args.device_address, 'uname -r').decode().strip()
+        if release != manifest['kernel_release']:
+            raise RuntimeError('Installer kernel does not match this bundle')
+        if not args.host_address:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as route:
+                route.connect((args.device_address, 2323))
+                args.host_address = route.getsockname()[0]
+        handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(bundle))
+        server = http.server.ThreadingHTTPServer((args.host_address, 0), handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        args.backup.mkdir(mode=0o700, parents=True)
+        backups = {}
+        for name in ('boot_a', 'boot_b', 'persist'):
+            device = '/dev/disk/by-partlabel/' + name
+            content = command(args.device_address,
+                              'set -e; test -b ' + device + '; /bin/busybox base64 ' + device, 600)
+            target = args.backup / (name + '.img')
+            target.write_bytes(base64.b64decode(content, validate=False))
+            target.chmod(0o600)
+            expected = command(args.device_address, '/bin/busybox sha256sum ' + device, 120).decode().split()[0]
+            if sha(target) != expected:
+                raise RuntimeError('Backup verification failed: ' + name)
+            backups[target.name] = expected
+        (args.backup / 'SHA256SUMS').write_text(''.join(f'{h}  {n}\n' for n, h in backups.items()))
+        available = int(command(args.device_address, "awk '/^MemAvailable:/ {print $2}' /proc/meminfo").decode()) * 1024
+        if (bundle / 'rootfs.tar.gz').stat().st_size + 512 * 1024**2 > available:
+            raise RuntimeError('Insufficient RAM to stage the root archive; userdata remains unchanged')
+        url = f'http://{args.host_address}:{server.server_port}/rootfs.tar.gz'
+        install = ['sh', '/usr/lib/liuqin/install-root.sh', boot_id, url,
+                   manifest['files']['rootfs.tar.gz'], 'ERASE-LIUQIN-USERDATA']
+        result = command(args.device_address, shlex.join(install), 3600)
+        if b'liuqin-install: ROOT_INSTALLED' not in result:
+            raise RuntimeError('Device did not confirm root installation')
+        command(args.device_address, "(sleep 2; reboot bootloader) >/dev/null 2>&1 &")
+        deadline = time.monotonic() + 90
+        while time.monotonic() < deadline:
+            devices = subprocess.check_output(['fastboot', 'devices'], text=True, timeout=10)
+            if any(line.split()[0] == args.serial for line in devices.splitlines() if line.split()):
+                break
+            time.sleep(2)
+        else:
+            raise RuntimeError('Return to Fastboot not observed; boot partition was not flashed')
+        fastboot('flash', 'boot_a', str(bundle / 'boot.img'))
+        fastboot('reboot')
+        print('Installation commands completed. First-boot verification is still required.')
+    finally:
+        if server:
+            server.shutdown()
+            server.server_close()
+
+
+if __name__ == '__main__':
+    main()

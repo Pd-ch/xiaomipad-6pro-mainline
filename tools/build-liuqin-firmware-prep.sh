@@ -1,17 +1,8 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
 #
-# Prepare the complete liuqin GNOME firmware tree directly from the original
-# pinned inputs: the local firmware pool (carved from the stock ROM, see
-# tools/local/firmware-liuqin/MANIFEST.sha256), the stock-ROM VPU blob, the
-# AudioReach topology built from public source, and the HSP2 WLAN tuple built
-# by tools/build-liuqin-wifi5g-hsp2-tuple.sh.
-#
-# This replaces the historical path in which build-liuqin-gnome-device-layer.sh
-# extracted usr/lib/firmware out of the old persistent Weston rootfs.  The pool
-# is the only place that rootfs closure ever came from, so the tree produced
-# here is byte-identical by construction; --check-against proves it against a
-# frozen release-layer manifest (used as an oracle only, never as an input).
+# Prepare the liuqin firmware tree from pinned stock and upstream firmware,
+# source-built AudioReach topology and tools/build-liuqin-wlan.py output.
 #
 # Per-device objects are deliberately absent: the CS35L41 cirrus/*-calr.bin
 # calibration, the Bluetooth public address, the WLAN MAC and the persist
@@ -25,8 +16,7 @@ vpu_blob=${VPU_BLOB:-$project_root/tools/local/roms/liuqin/OS2.0.6.0.VMYCNXM/ext
 vpu_sha256=3567fd4522323b132ae4dd0f94a34782b2bc6a8c5c5fb51edfdbe364450fc118
 topology_bin=${TOPOLOGY_BIN:?set TOPOLOGY_BIN to the output of tools/build-liuqin-audio-topology.sh}
 topology_sha256=dff0c8af945c66d542a004931af66435966cee12c6c430d0fa0610c6d3d5d126
-tuple_dir=${HSP2_TUPLE_DIR:?set HSP2_TUPLE_DIR to the tuple/ output of tools/build-liuqin-wifi5g-hsp2-tuple.sh hsp2-amss20}
-tuple_tree_sha256=b103b5dcfbd5c0802fc6e964c4eb694ca6ea78910748790383e49555d7fb0b33
+tuple_dir=${HSP2_TUPLE_DIR:?set HSP2_TUPLE_DIR to the output of tools/build-liuqin-wlan.py}
 out_dir=${OUT_DIR:?set OUT_DIR to a fresh output directory}
 oracle_manifest=${ORACLE_MANIFEST:-}
 
@@ -112,11 +102,9 @@ printf '%s  %s\n' "$vpu_sha256" "$vpu_blob" | sha256sum -c --quiet - >/dev/null 
 	die 'AudioReach topology identity mismatch'
 
 # HSP2 tuple (vendor amss20/m3/regdb + bdencoder-generated board-2), both
-# hardware-revision request paths; the tuple tree hash pins the source form.
+# hardware-revision request paths. Verify the consumed payloads directly;
+# archive directory modes are not firmware identity.
 [ -d "$tuple_dir/hw2.0" ] && [ -d "$tuple_dir/hw2.1" ] || die "HSP2 tuple is unavailable: $tuple_dir"
-tuple_actual=$(tar -C "$tuple_dir" --sort=name --mtime='@0' --owner=0 --group=0 \
-	--numeric-owner -cf - . | sha256sum | cut -d' ' -f1)
-[ "$tuple_actual" = "$tuple_tree_sha256" ] || die 'HSP2 tuple tree identity mismatch'
 for item in \
 	"amss.bin:cc3e477fa698a28bdb8c8115a071893f9b2f5230de190ad525e74fd69bbb6092" \
 	"m3.bin:6938b4bba268a02659ee5e16992971aa0e2fab103a4f60cbccf65e4bd8ac9836" \

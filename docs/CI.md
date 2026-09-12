@@ -1,0 +1,57 @@
+# Builds and Automation
+
+## Kernel Changes
+
+The kernel repository's `Liuqin kernel` workflow builds pushes and pull requests
+to `liuqin-6.17`. It checks out the integration repository's `main` and uses its
+shared `.github/actions/kernel` action. No cross-repository write token is needed.
+Both repositories must exist under the same GitHub owner before enabling this flow.
+
+The integration repository's `Kernel build` workflow uses `kernel/source.json`.
+Accept a kernel update by changing that commit: the configuration and packaging
+remain in the integration repository. Kernel development artifacts record their
+tested SHA separately and cannot enter image assembly as product inputs.
+
+Kernel jobs use GitHub-hosted Ubuntu runners and ccache. They upload the Image,
+DTB, configuration, symbols, matching module package inputs and checksums as
+Actions artifacts. Compilation is not a device test or an automatic release.
+
+## System Images
+
+`tools/build-liuqin-image.py` is the local and CI assembly entry point. It consumes
+a completed product kernel build plus prepared inputs; it does not rebuild every
+third-party dependency. `--stage` resumes an interrupted assembly without repeating
+successful stages. Do not modify sources or inputs while an assembly is running.
+
+The `System image` workflow is manually dispatched on `main` and uploads the
+matching boot image, installer RAM image, rootfs, installer and checksums.
+It requires a dedicated Linux x86-64 runner labeled `liuqin-images`, sufficient
+disk space for kernel outputs and two desktop trees, and the host dependencies
+listed in BUILD. Python also needs pyelftools; image assembly needs root, GNU tar,
+ACL/xattr support, squashfs-tools, cpio, ARM64 binfmt and the cross compiler.
+The runner must allow noninteractive execution of the trusted assembly command
+with sudo. Do not run external pull requests on this privileged runner.
+After configuring the runner, set repository variable `LIUQIN_IMAGE_CI=enabled`
+to also assemble images automatically when relevant code changes reach `main`.
+
+Set `LIUQIN_IMAGE_INPUTS` to a runner-local JSON file (default
+`/opt/liuqin/inputs.json`). It contains the prepared-input variables listed by
+`tools/build-liuqin-image.py`: Ubuntu root and manifest, firmware pool and prepared
+tree, audio topology, WLAN set, stock DTB/DTBO inputs, sensor archive, Settings
+binary and its build manifest, BusyBox and mkbootimg. Hash values remain pinned;
+the local paths and raw input file are not uploaded with artifacts. Upstream
+downloads and prebuilt components may be cached outside the checkout.
+
+Example on a prepared host:
+
+```sh
+python3 tools/build-liuqin-kernel.py
+sudo python3 tools/build-liuqin-image.py \
+  --inputs /opt/liuqin/inputs.json --kernel-out "$PWD/out/kernel"
+python3 tools/install-liuqin.py --bundle out/image/bundle --check
+```
+
+The workflow does not create a public Release or mark a bundle device-tested.
+GitHub execution still requires publishing the repositories and configuring the
+runner. Installation and Android recovery must be tested on the final candidate
+before a supported installation version is published.

@@ -1,0 +1,27 @@
+name: Integration checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Python and shell syntax
+        run: |
+          python3 - <<'PY'
+          import ast
+          import subprocess
+          from pathlib import Path
+          for path in Path('tools').rglob('*.py'):
+              ast.parse(path.read_text(), filename=str(path))
+          for path in Path('tools').rglob('*.sh'):
+              subprocess.run(['sh', '-n', str(path)], check=True)
+          PY
+      - name: Installer offline checks
+        run: |
+          python3 tests/installer.py
+          sudo python3 tests/rootfs-archive.py

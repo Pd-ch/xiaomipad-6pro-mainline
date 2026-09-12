@@ -18,6 +18,7 @@ set -eu
 project_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 input_dir=${UBUNTU_DESKTOP_INPUT:-"$project_root/tools/local/ubuntu-desktop-26.04-arm64"}
 iso=$input_dir/ubuntu-26.04-desktop-arm64.iso
+iso_url=${UBUNTU_DESKTOP_URL:-https://cdimage.ubuntu.com/ubuntu/releases/26.04/release/ubuntu-26.04-desktop-arm64.iso}
 iso_bytes=4161089536
 iso_sha256=c2afd538d66fdd77377d03f1ed2ac76a34f1c116baecc9a8170d68f833121f57
 base_sha256=82613d06f973778f6d49c817d7eb764a7fd812016a30a7f8006e8f61d718b393
@@ -32,6 +33,25 @@ verify_iso() {
 	[ "$(stat -c %s "$iso")" = "$iso_bytes" ] || die "ISO size differs from $iso_bytes"
 	printf '%s  %s\n' "$iso_sha256" "$iso" | sha256sum -c --quiet - ||
 		die 'ISO sha256 mismatch; do not use this file'
+}
+
+download_iso() {
+	mkdir -p "$input_dir"
+	exec 9>"$input_dir/.download.lock"
+	flock -n 9 || die 'another ISO download owns this input directory'
+	if [ -f "$iso" ]; then
+		verify_iso
+		printf 'Using cached Ubuntu ISO\n'
+		return
+	fi
+	command -v curl >/dev/null || die 'curl is required'
+	# A mirror override must supply the same pinned bytes, never a newer release.
+	curl --fail --location --continue-at - --output "$iso.part" "$iso_url"
+	[ "$(stat -c %s "$iso.part")" = "$iso_bytes" ] || die 'downloaded ISO size mismatch'
+	printf '%s  %s\n' "$iso_sha256" "$iso.part" | sha256sum -c --quiet - ||
+		die 'downloaded ISO hash mismatch; remove the .part file before retrying'
+	mv "$iso.part" "$iso"
+	printf 'Ubuntu ISO downloaded and verified\n'
 }
 
 extract_casper() {
@@ -106,9 +126,10 @@ write_manifest() {
 }
 
 case ${1:-} in
+download) download_iso ;;
 verify-iso) verify_iso; printf 'ISO verified: %s bytes, %s\n' "$iso_bytes" "$iso_sha256" ;;
 casper) extract_casper ;;
 extract) extract_rootfs ;;
 manifest) [ -d "$rootfs" ] || die "rootfs is unavailable: $rootfs"; write_manifest ;;
-*) die 'usage: build-liuqin-ubuntu-desktop-rootfs.sh verify-iso|casper|extract|manifest' ;;
+*) die 'usage: build-liuqin-ubuntu-desktop-rootfs.sh download|verify-iso|casper|extract|manifest' ;;
 esac

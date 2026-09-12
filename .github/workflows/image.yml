@@ -1,0 +1,59 @@
+name: System image
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'device/**'
+      - 'initramfs/**'
+      - 'kernel/source.json'
+      - 'tools/**'
+      - '.github/workflows/image.yml'
+permissions:
+  contents: read
+concurrency:
+  group: liuqin-image-builder
+  cancel-in-progress: false
+jobs:
+  image:
+    # This privileged job only runs trusted main code, never external PRs.
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || vars.LIUQIN_IMAGE_CI == 'enabled')
+    runs-on: [self-hosted, linux, X64, liuqin-images]
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: project
+          persist-credentials: false
+      - name: Kernel revision
+        id: kernel
+        run: |
+          python3 - <<'PY'
+          import json, os
+          sha = json.load(open('project/kernel/source.json'))['commit']
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as stream:
+              stream.write('sha=' + sha + '\n')
+          PY
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/linux-sm8450-liuqin
+          ref: ${{ steps.kernel.outputs.sha }}
+          path: linux-sm8450-liuqin
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build matching kernel
+        run: python3 project/tools/build-liuqin-kernel.py --jobs 8
+      - name: Assemble image
+        env:
+          INPUT_FILE: ${{ vars.LIUQIN_IMAGE_INPUTS || '/opt/liuqin/inputs.json' }}
+        run: |
+          sudo -n python3 project/tools/build-liuqin-image.py \
+            --inputs "$INPUT_FILE" --kernel-out "$GITHUB_WORKSPACE/project/out/kernel"
+          python3 project/tools/install-liuqin.py --bundle project/out/image/bundle --check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: liuqin-system-${{ github.sha }}
+          if-no-files-found: error
+          compression-level: 0
+          path: project/out/image/bundle/
+          retention-days: 7

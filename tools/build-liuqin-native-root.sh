@@ -22,6 +22,7 @@
 # debs      qemu chroot apt/dpkg install of the five debs
 # assemble  BlueZ policy, unit links, marker, boundary asserts, pre-flight
 # manifest  tree manifest + hash list + identity
+# pack      archive the assembled tree with ownership, ACLs and xattrs
 # all       the four in order (default)
 set -eu
 
@@ -323,11 +324,21 @@ PYEOF
 	cat "$out_dir/native-root.identity"
 }
 
+stage_pack() {
+	[ -f "$out_dir/native-root.identity" ] || die 'run the manifest stage first'
+	[ -n "$(getcap "$root/usr/lib/snapd/snap-confine" 2>/dev/null)" ] ||
+		die 'root tree has lost the snap-confine capability'
+	sh "$project_root/tools/lib/rootfs-archive.sh" pack "$root" "$out_dir/rootfs.tar.gz"
+	(cd "$out_dir" && sha256sum rootfs.tar.gz >rootfs.tar.gz.sha256)
+	say 'archive prepared; this is not an installation or release verdict'
+}
+
 case ${1:-all} in
 copy) stage_copy ;;
 debs) stage_debs ;;
 assemble) stage_assemble ;;
 manifest) stage_manifest ;;
+pack) stage_pack ;;
 all) stage_copy; stage_debs; stage_assemble; stage_manifest ;;
-*) die 'usage: build-liuqin-native-root.sh [all|copy|debs|assemble|manifest]' ;;
+*) die 'usage: build-liuqin-native-root.sh [all|copy|debs|assemble|manifest|pack]' ;;
 esac

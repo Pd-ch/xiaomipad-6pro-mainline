@@ -54,6 +54,54 @@ complete toolchain and build inputs.
 
 ## Userspace and Images
 
+### Input Sources
+
+| Component | Delivery |
+|---|---|
+| Original Ubuntu desktop base | Download the pinned Canonical ISO and extract it; this repository does not mirror the ISO |
+| Unmodified Ubuntu packages and BusyBox | Download from Ubuntu repositories and cache locally; no duplicate package mirror |
+| Upstream tools and userspace source | Pin upstream versions; maintain integration code and necessary patches here |
+| Device kernel and project integration | Maintain source in the two project repositories; provide matching binaries with installation releases |
+| Board firmware set | Manage required components as release inputs, not scattered experiment outputs; do not mirror the entire stock ROM |
+| Factory calibration and device addresses | Read from the user's own tablet during installation; never include in generic packages |
+| Adapted Ubuntu system | A project installation artifact, distinct from the unmodified upstream rootfs |
+
+Builders download upstream inputs and assemble the system. Installation users use
+matching finished artifacts without compiling components or finding dependencies
+individually. Installation releases are not yet available.
+
+### Ubuntu Base
+
+Install curl, util-linux (flock), 7z and squashfs-tools, then run:
+
+```sh
+sh tools/build-liuqin-ubuntu-desktop-rootfs.sh download
+sh tools/build-liuqin-ubuntu-desktop-rootfs.sh casper
+sudo sh tools/build-liuqin-ubuntu-desktop-rootfs.sh extract
+```
+
+Verified cached downloads are reused and interrupted transfers can resume.
+`UBUNTU_DESKTOP_URL` may select a mirror supplying identical pinned bytes, not a
+different release. Set `UBUNTU_DESKTOP_INPUT` consistently across stages to change
+the input directory. Extraction prepares the desktop base only; project device
+components must still be installed before it can boot on the tablet.
+
+### Device Components
+
+Third-party components do not all need to be rebuilt from source. Pinned upstream
+binaries or project-prepared components may be used where redistribution permits,
+with provenance, checksums and required license/source materials. Project changes
+remain available as source. No prepared firmware download is currently published.
+
+`tools/build-liuqin-wlan.py` prepares the WLAN set from a stock QCA6490 directory
+(amss20.bin, m3.bin, regdb.bin and bd_m81gf.elf) and the pinned upstream
+board-2.bin.zst. Pass `--vendor`, `--base-board`, `--out` and `--bdencoder`.
+The encoder is `tools/scripts/ath11k/ath11k-bdencoder` from Qualcomm's
+qca-swiss-army-knife commit `6df4dae3e2f5e4c2903f3cafd40996fc1b3639ce`.
+Python 3 and zstd are required. The output is the firmware preparer's
+`HSP2_TUPLE_DIR`. Stock input acquisition instructions and distribution terms
+remain incomplete; this tool does not download or distribute firmware.
+
 The device integration sources include system services, audio configuration,
 power-key support, sensor patches and the GNOME Settings patch. Sensor source
 versions are recorded in `device/sensors/sources.manifest`.
@@ -106,8 +154,28 @@ Versioned firmware inputs and userspace build dependencies must be available
 before that workflow is supported. Do not substitute an older
 boot image or a kernel from a different build.
 
+## Root Filesystem Archives
+
+After assembly and manifest generation, run
+`sudo -E sh tools/build-liuqin-native-root.sh pack` with the same `OUT_DIR`.
+This produces `rootfs.tar.gz` and its checksum without rebuilding components or
+accessing the tablet. Keep the input tree unchanged throughout packaging; do not
+package a booted tree containing accounts or provisioned device data.
+Existing archives are not overwritten.
+
+The archive preserves numeric ownership, modes, links, ACLs and extended
+attributes, including `security.capability`. To extract a trusted, verified
+archive locally, use `sudo sh tools/lib/rootfs-archive.sh extract NEW_DIR rootfs.tar.gz`.
+GNU tar is required; BusyBox tar is not a substitute. The installation environment
+must provide equivalent extraction support. This does not validate installation
+or Android recovery.
+
 ## Continuous Integration
 
 The workflow builds the pinned kernel using the same Python entry point as the
 local build. Its artifacts are kernel build outputs, not installable Ubuntu
-releases. Full-image release automation is not enabled.
+releases. Kernel-repository development builds share the same action.
+`tools/build-liuqin-image.py` assembles matching system artifacts with resumable
+stages. The image workflow requires a configured dedicated runner; see
+[CI setup](CI.md). The [test installer](INSTALL-TESTING.md) remains unverified on
+the final device candidate and is not a supported installation release.

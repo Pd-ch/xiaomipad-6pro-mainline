@@ -51,6 +51,49 @@ python3 tools/build-liuqin-kernel.py --jobs 12
 
 ## 用户态与镜像
 
+### 输入来源
+
+| 内容 | 获取与维护方式 |
+|---|---|
+| 原版 Ubuntu 桌面基础系统 | 脚本从 Canonical 下载固定 ISO、校验后提取；本仓库不镜像原版 ISO |
+| 未修改的 Ubuntu 软件包、BusyBox | 从 Ubuntu 软件源下载，复用本地缓存；不另建软件包镜像站 |
+| 上游工具与用户态源码 | 使用固定上游版本；本仓库保留调用代码、必要补丁和版本引用 |
+| 设备内核与项目适配 | 本项目两仓维护源码；安装版本提供匹配的预编译组件 |
+| 板级固件组合 | 安装所需组件由版本物料统一管理，不要求用户拼接实验产物；不重复托管整个原厂 ROM |
+| 本机校准、设备地址 | 安装时读取用户自己的平板，不能包含在通用包中 |
+| 已适配的 Ubuntu 系统 | 项目安装版本的成品，不等同未修改的上游 rootfs |
+
+构建者从上游下载基础输入后执行本项目装配；普通安装用户使用匹配的成品包，
+不需要自己编译内核、设置程序或逐项查找依赖。安装版本尚未发布。
+
+### Ubuntu 基础系统
+
+需要 curl、util-linux（flock）、7z 和 squashfs-tools。按顺序执行：
+
+```sh
+sh tools/build-liuqin-ubuntu-desktop-rootfs.sh download
+sh tools/build-liuqin-ubuntu-desktop-rootfs.sh casper
+sudo sh tools/build-liuqin-ubuntu-desktop-rootfs.sh extract
+```
+
+下载复用已校验缓存，传输中断可续传；`UBUNTU_DESKTOP_URL` 可指定提供同一文件的镜像，
+不会接受不同版本。输入位置可用 `UBUNTU_DESKTOP_INPUT` 指定，后续步骤须使用相同值。
+提取只准备桌面基础系统；还需装入项目设备组件，不能直接作为平板启动镜像。
+
+### 设备组件
+
+第三方组件不要求全部从源码重建：可以使用固定版本的上游二进制，或在允许分发的前提下
+使用项目提供的预备组件。保留来源、版本、校验值及必要许可/对应源码材料；本项目的修改提供源码。
+目前尚未发布预备固件包，不能将本地缓存视为已有公共下载。
+
+Wi-Fi 固件组合可通过 `tools/build-liuqin-wlan.py` 准备，输入为原厂 QCA6490 目录
+（amss20.bin、m3.bin、regdb.bin、bd_m81gf.elf）及固定版本的上游 board-2.bin.zst。
+输出可直接传给固件准备器的 `HSP2_TUPLE_DIR`。`--bdencoder` 指向 Qualcomm
+qca-swiss-army-knife 提交 `6df4dae3e2f5e4c2903f3cafd40996fc1b3639ce` 下的
+`tools/scripts/ath11k/ath11k-bdencoder`，需要 Python 3 和 zstd。
+通过 `--vendor`、`--base-board` 和 `--out` 指定输入和新输出目录。
+原厂输入的获取说明与分发边界仍待完善；本工具不下载或分发固件。
+
 设备适配源码包括系统服务、音频配置、电源键支持、传感器补丁和 GNOME 设置程序补丁。
 传感器源码版本记录在 `device/sensors/sources.manifest`。
 
@@ -95,7 +138,22 @@ native boot 构建器直接使用指定内核的 Image、DTB，以及已装配�
 完整镜像从干净 checkout 构建的流程仍在准备，需补齐版本化固件输入、用户态构建依赖
 后，才能提供受支持的一体化入口。不要用旧 boot 镜像或其他构建的内核代替。
 
+## 根文件系统归档
+
+装配及 manifest 阶段完成后，在相同 `OUT_DIR` 下执行
+`sudo -E sh tools/build-liuqin-native-root.sh pack`，生成 `rootfs.tar.gz` 及校验文件。
+归档期间输入树不可修改，不要对已经启动、创建账户或注入本机数据的根目录打公共包。
+这一步不重编组件，也不操作平板；不会覆盖已有归档。
+
+归档保留数字UID/GID、权限、符号/硬链接、ACL与扩展属性，包括 `security.capability`。
+本地解包使用 `sudo sh tools/lib/rootfs-archive.sh extract 新目录 rootfs.tar.gz`；
+仅解包可信且校验通过的项目归档，需要 GNU tar，不可换成 BusyBox tar。
+安装环境也必须具备同样的解包能力；本地归档通过不代表首次安装/恢复已经验证。
+
 ## 持续集成
 
 工作流使用与本地相同的 Python 入口编译固定版本内核，产物为内核构建文件，
-不是可安装的 Ubuntu 发行包。完整镜像的发布自动化尚未启用。
+不是可安装的 Ubuntu 发行包。内核仓库的提交构建与主项目的锁定版本构建共用同一入口。
+整包装配使用 `tools/build-liuqin-image.py`，支持单阶段续跑；GitHub 整包任务需要配置专用构建机，
+默认手动触发，可在配置完成后启用 main 更新自动装配。详见[CI 配置](CI.md)。
+测试安装器说明见[安装测试](INSTALL-TESTING.md)，尚未经过最终真机验收，不作为稳定安装发布。
