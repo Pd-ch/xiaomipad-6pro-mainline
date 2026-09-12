@@ -35,6 +35,9 @@ def main():
     if set(supplied) != INPUTS or not all(isinstance(v, str) and v for v in supplied.values()):
         parser.error('Input keys must match: ' + ', '.join(sorted(INPUTS)))
     for key, value in supplied.items():
+        if not key.endswith('_SHA256'):
+            supplied[key] = str((args.inputs.resolve().parent / value).resolve())
+            value = supplied[key]
         if not key.endswith('_SHA256') and not Path(value).exists():
             parser.error('Prepared input missing: ' + key)
     out, kernel = args.out.resolve(), args.kernel_out.resolve()
@@ -48,6 +51,10 @@ def main():
         parser.error('Kernel configuration does not match the product lock')
     subprocess.run(['sha256sum', '-c', '--quiet', 'SHA256SUMS'], cwd=kernel, check=True)
     env = os.environ.copy()
+    # Privileged assembly reads exactly these user-owned repositories.
+    env.update(GIT_CONFIG_COUNT='2', GIT_CONFIG_KEY_0='safe.directory',
+               GIT_CONFIG_VALUE_0=str(project), GIT_CONFIG_KEY_1='safe.directory',
+               GIT_CONFIG_VALUE_1=str(project.parent / 'linux-sm8450-liuqin'))
     env.update(supplied, KERNEL_SOURCE=str(project.parent / 'linux-sm8450-liuqin'),
                KERNEL_DIR=str(project.parent / 'linux-sm8450-liuqin'), KERNEL_COMMIT=lock['commit'],
                KERNEL_OUT=str(kernel), KERNEL_IMAGE=str(kernel / 'arch/arm64/boot/Image'),
@@ -96,8 +103,8 @@ def main():
                     hashes[name] = hashlib.file_digest(stream, 'sha256').hexdigest()
             metadata = {'device': 'liuqin', 'status': 'OFFLINE_ASSEMBLED',
                         'kernel_commit': lock['commit'],
-                        'project_commit': subprocess.check_output(['git', '-C', str(project), 'rev-parse', 'HEAD'], text=True).strip(),
-                        'project_dirty': bool(subprocess.check_output(['git', '-C', str(project), 'status', '--porcelain'])),
+                        'project_commit': subprocess.check_output(['git', '-C', str(project), 'rev-parse', 'HEAD'], env=env, text=True).strip(),
+                        'project_dirty': bool(subprocess.check_output(['git', '-C', str(project), 'status', '--porcelain'], env=env)),
                         'kernel_release': (kernel / 'include/config/kernel.release').read_text().strip(),
                         'files': hashes}
             (destination / 'bundle.json').write_text(json.dumps(metadata, indent=2) + '\n')
