@@ -154,7 +154,7 @@ def main():
         result = command(args.device_address, shlex.join(install), 3600)
         if b'liuqin-install: ROOT_INSTALLED' not in result:
             raise RuntimeError('Device did not confirm root installation')
-        command(args.device_address, "(sleep 2; reboot bootloader) >/dev/null 2>&1 &")
+        command(args.device_address, "(sleep 2; /usr/sbin/liuqin-reboot bootloader) >/dev/null 2>&1 &")
         deadline = time.monotonic() + 90
         while time.monotonic() < deadline:
             devices = subprocess.check_output(['fastboot', 'devices'], text=True, timeout=10)

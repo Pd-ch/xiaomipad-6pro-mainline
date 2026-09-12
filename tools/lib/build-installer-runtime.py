@@ -4,8 +4,10 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
+import subprocess
 from elftools.elf.elffile import ELFFile
 
 
@@ -51,6 +53,11 @@ def main():
         shutil.copyfile(source, destination)
         destination.chmod(0o644 if relative == 'etc/mke2fs.conf' else 0o755)
         manifest[relative] = hashlib.sha256(destination.read_bytes()).hexdigest()
+    reboot = out / 'usr/sbin/liuqin-reboot'
+    source = Path(__file__).resolve().parents[2] / 'device/charger-mode/liuqin-charger-mode-exit.c'
+    subprocess.run([os.environ.get('CROSS_COMPILE', 'aarch64-linux-gnu-') + 'gcc',
+                    '-Os', '-static', '-s', str(source), '-o', str(reboot)], check=True)
+    manifest['usr/sbin/liuqin-reboot'] = hashlib.sha256(reboot.read_bytes()).hexdigest()
     (out / 'runtime-files.json').write_text(json.dumps(manifest, indent=2) + '\n')
     (out / 'etc/passwd').write_text('root:x:0:0:root:/root:/bin/sh\n')
     (out / 'etc/group').write_text('root:x:0:\n')
