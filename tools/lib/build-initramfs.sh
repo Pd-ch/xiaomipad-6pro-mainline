@@ -133,7 +133,8 @@ auto)
 0|1) ;;
 *) echo "error: LIUQIN_CHARGER_MODE must be auto, 0 or 1" >&2; exit 1 ;;
 esac
-if [ "$root_profile" != legacy ] && [ "$charger_mode" != 1 ]; then
+# The explicit installer branch switches the final image to read-only RAM mode.
+if [ "$root_profile" != legacy ] && [ "$charger_mode" != 1 ] && [ -z "${INSTALLER_RUNTIME:-}" ]; then
 	echo "error: a persistent GNOME/native image must include charger-mode hold" >&2
 	exit 1
 fi
