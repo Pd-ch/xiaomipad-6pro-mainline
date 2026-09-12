@@ -151,12 +151,10 @@ def main():
                 raise RuntimeError('Backup verification failed: ' + name)
             backups[target.name] = expected
         (args.backup / 'SHA256SUMS').write_text(''.join(f'{h}  {n}\n' for n, h in backups.items()))
-        available = int(remote("awk '/^MemAvailable:/ {print $2}' /proc/meminfo").decode()) * 1024
-        if (bundle / 'rootfs.tar.gz').stat().st_size + 512 * 1024**2 > available:
-            raise RuntimeError('Insufficient RAM to stage the root archive; userdata remains unchanged')
         url = f'http://{args.host_address}:{server.server_port}/rootfs.tar.gz'
         install = ['sh', '/usr/lib/liuqin/install-root.sh', boot_id, url,
-                   manifest['files']['rootfs.tar.gz'], 'ERASE-LIUQIN-USERDATA']
+                   manifest['files']['rootfs.tar.gz'], str((bundle / 'rootfs.tar.gz').stat().st_size),
+                   'ERASE-LIUQIN-USERDATA']
         print('Installing Ubuntu; userdata will be erased after input checks.', flush=True)
         result = remote(shlex.join(install), 3600)
         if b'liuqin-install: ROOT_INSTALLED' not in result:
