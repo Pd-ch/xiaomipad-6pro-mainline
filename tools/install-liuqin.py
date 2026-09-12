@@ -100,6 +100,9 @@ def main():
     # The current boot contract supports slot A only; never switch slots implicitly.
     if not re.search(r'current-slot:\s*a\b', fastboot('getvar', 'current-slot')):
         parser.error('slot A must be active before this installation')
+    size = re.search(r'partition-size:boot_a:\s*(0x[0-9a-fA-F]+)', fastboot('getvar', 'partition-size:boot_a'))
+    if not size or max((bundle / name).stat().st_size for name in ('boot.img', 'installer.img')) > int(size[1], 16):
+        parser.error('boot image exceeds the reported boot partition size')
     server = None
     try:
         fastboot('boot', str(bundle / 'installer.img'))
