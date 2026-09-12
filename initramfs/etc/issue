@@ -1,0 +1,4 @@
+liuqin first-boot diagnostic initramfs
+
+This image never mounts UFS. The telnet shell on USB port 2323 has no
+authentication and must never be exposed to an untrusted network.

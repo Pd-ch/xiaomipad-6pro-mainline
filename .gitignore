@@ -1,0 +1,17 @@
+# Local build inputs, outputs and logs (including symlinks to shared caches).
+/out
+/tools/local
+/sources
+/logs
+
+# Python and editor state.
+__pycache__/
+*.pyc
+*.swp
+*~
+
+# Add documentation images explicitly after review.
+*.jpg
+*.jpeg
+*.png
+*.heic

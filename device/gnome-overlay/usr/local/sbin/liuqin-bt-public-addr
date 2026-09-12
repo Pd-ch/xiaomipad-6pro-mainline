@@ -1,0 +1,276 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+#
+# Give the QCA6490 a public Bluetooth address so BlueZ can publish an adapter.
+#
+# The NVM this unit ships carries a placeholder rather than a real address.
+# The kernel exposes the QCA6490 first as an unconfigured MGMT index.  That
+# index is not necessarily the eventual primary index.  BlueZ cannot acquire
+# the controller until its public address is committed, so the helper runs as
+# a required predecessor of bluetooth.service, discovers the unconfigured
+# index through the global MGMT list, and accepts only that state or the
+# reviewed placeholder identity.
+#
+# One provisioned public address is all it wants. This is deliberately much
+# narrower than the Weston root's liuqin-bluetooth supervisor, which also
+# launched and policed its own bluetoothd; the GNOME root has Canonical's
+# BlueZ and only needs the controller identity made usable before it starts.
+#
+# The address comes from root-only, device-specific state provisioned from a
+# private persist backup.  It is stable across boots so BlueZ bond state stays
+# usable, but remains outside the release tar, manifest and source tree.
+set -eu
+
+mgmt=${BTMGMT:-/usr/bin/btmgmt}
+index=${LIUQIN_BT_INDEX:-0}
+attempt_limit=${LIUQIN_BT_ATTEMPTS:-10}
+address_state=${LIUQIN_BT_ADDRESS_STATE:-/var/lib/liuqin-private/bluetooth-address}
+timeout=/usr/bin/timeout
+restore_needed=false
+
+say() { printf 'liuqin-bt-public-addr: %s\n' "$*"; }
+die() { printf 'liuqin-bt-public-addr: %s\n' "$*" >&2; exit 1; }
+
+[ -x "$mgmt" ] || die "btmgmt is unavailable: $mgmt"
+[ -x "$timeout" ] || die "timeout is unavailable: $timeout"
+case $index in ''|*[!0-9]*) die "invalid controller index: $index";; esac
+case $attempt_limit in ''|*[!0-9]*|0) die "invalid attempt limit: $attempt_limit";; esac
+# Product Bluetooth identity is device-unique state, not a release artifact.
+# Refuse to touch MGMT until the provisioned file has exact private metadata
+# and one syntactically valid public address.  In particular, never replace a
+# missing identity with a random per-boot LAA: doing so invalidates BlueZ bond
+# state and prevents paired keyboards from reconnecting after reboot.
+case $address_state in /*) ;; *) die 'provisioned Bluetooth identity path is not absolute' ;; esac
+address_dir=${address_state%/*}
+[ -d "$address_dir" ] && [ ! -L "$address_dir" ] ||
+	die 'provisioned Bluetooth identity directory is unsafe'
+[ -f "$address_state" ] && [ ! -L "$address_state" ] ||
+	die 'provisioned Bluetooth identity is unavailable'
+if [ "${LIUQIN_BT_ADDRESS_TEST_ALLOW_UNPRIVILEGED:-0}" = 1 ]; then
+	[ "$(stat -c '%a' "$address_dir")" = 700 ] ||
+		die 'provisioned Bluetooth identity directory has unsafe metadata'
+	[ "$(stat -c '%a' "$address_state")" = 600 ] ||
+		die 'provisioned Bluetooth identity has unsafe metadata'
+else
+	[ "$(stat -c '%a:%u:%g' "$address_dir")" = 700:0:0 ] ||
+		die 'provisioned Bluetooth identity directory has unsafe metadata'
+	[ "$(stat -c '%a:%u:%g' "$address_state")" = 600:0:0 ] ||
+		die 'provisioned Bluetooth identity has unsafe metadata'
+fi
+[ "$(wc -c <"$address_state" | tr -d ' ')" = 18 ] &&
+	[ "$(tail -c 1 "$address_state" | od -An -tu1 | tr -d ' ')" = 10 ] ||
+	die 'provisioned Bluetooth identity has invalid framing'
+IFS= read -r address <"$address_state" ||
+	die 'cannot read provisioned Bluetooth identity'
+printf '%s\n' "$address" | grep -Eqi '^([0-9A-F]{2}:){5}[0-9A-F]{2}$' ||
+	die 'provisioned Bluetooth identity has invalid syntax'
+address=$(printf '%s\n' "$address" | tr '[:upper:]' '[:lower:]')
+case $address in
+00:00:00:00:00:00|ff:ff:ff:ff:ff:ff|00:00:00:00:5a:ad)
+	die 'provisioned Bluetooth identity is reserved'
+	;;
+esac
+address_upper=$(printf '%s\n' "$address" | tr '[:lower:]' '[:upper:]')
+
+# btmgmt's non-interactive exit status is not a sufficient bound: at early
+# boot an individual MGMT request has been observed waiting until systemd's
+# 90-second unit timeout killed the whole helper. Bound every request itself,
+# so the outer retry count is a real wall-clock limit rather than a hope.
+# bluez 5.85 dispatches argv commands through its stdin input pump; a
+# /dev/null stdin cannot be epoll'd (EPERM), which parks btmgmt forever in
+# any systemd unit (StandardInput=null).  Feed it an empty pipe instead.
+run_mgmt()
+{
+	true | "$timeout" --signal=TERM --kill-after=1s 2s \
+		"$mgmt" "$@"
+}
+
+# If this helper had to take an already-powered placeholder controller down,
+# put it back in that state even when address assignment or the reindex wait
+# fails.  The rollback is deliberately bounded and silent: MGMT replies can
+# contain the device address, which must not be copied into the journal.
+restore_power()
+{
+	[ "$restore_needed" = true ] || return 0
+	restore_attempt=0
+	while [ "$restore_attempt" -lt 3 ]; do
+		if restore_info=$(run_mgmt --index "$index" info 2>&1) &&
+			printf '%s\n' "$restore_info" |
+			grep -Eq '^[[:space:]]*current settings:.*(^|[[:space:]])powered([[:space:]]|$)'; then
+			restore_needed=false
+			return 0
+		fi
+		if restore_output=$(run_mgmt --index "$index" power on 2>&1) &&
+			printf '%s\n' "$restore_output" |
+			grep -Eq "^hci$index[[:space:]]+Set Powered complete"; then
+			restore_needed=false
+			return 0
+		fi
+		restore_attempt=$((restore_attempt + 1))
+		[ "$restore_attempt" -ge 3 ] || sleep 1
+	done
+	return 1
+}
+
+cleanup()
+{
+	rc=$?
+	trap - EXIT HUP INT TERM
+	if ! restore_power; then
+		printf 'liuqin-bt-public-addr: could not restore the prior powered state\n' >&2
+		rc=1
+	fi
+	exit "$rc"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# The controller appears on its own schedule: hci_qca has to download the
+# rampatch and NVM over the UART first. Give it a bounded wait rather than
+# racing it.  This is a product-specific unit, so exhausting the wait is a
+# failure that propagates back to bluetooth.service.
+attempt=0
+needs_address=false
+address_index=$index
+was_powered=false
+primary_placeholder=false
+saw_controller=false
+while :; do
+	config=
+	config_rc=0
+	# With --index, btmgmt sends READ_CONFIG_INFO directly to that index.  It
+	# cannot discover an unconfigured controller whose temporary index differs
+	# from the eventual primary one.  The unindexed form first sends
+	# READ_UNCONF_INDEX_LIST and is the only valid discovery operation here.
+	config=$(run_mgmt config 2>&1) || config_rc=$?
+	if [ "$config_rc" = 0 ] &&
+		! printf '%s\n' "$config" | grep -Eqi 'invalid index|no controller'; then
+		unconfigured_count=$(printf '%s\n' "$config" | awk '
+			NR == 1 && $1 == "Unconfigured" && $2 == "index" &&
+				$3 == "list" && $4 == "with" && $5 ~ /^[0-9]+$/ &&
+				($6 == "item" || $6 == "items") { print $5; found=1 }
+			END { if (!found) exit 1 }
+		') || die 'malformed btmgmt unconfigured-index reply'
+		case $unconfigured_count in
+		0) : ;;
+		1)
+			# The product has exactly one QCA controller.  Require the full
+			# measured configuration identity before selecting its temporary
+			# index; ambiguity or a different manufacturer fails closed.
+			address_index=$(printf '%s\n' "$config" | awk '
+				/^hci[0-9]+:[[:space:]]+Unconfigured controller/ {
+					line=$1; sub(/^hci/, "", line); sub(/:$/, "", line)
+					count++; value=line
+				}
+				END { if (count == 1 && value ~ /^[0-9]+$/) print value; else exit 1 }
+			') || die 'unconfigured controller index is ambiguous'
+			[ "$(printf '%s\n' "$config" | grep -Ec '^[[:space:]]*manufacturer 29[[:space:]]*$')" = 1 ] &&
+				printf '%s\n' "$config" | grep -Eq 'supported options:.*public-address' &&
+				printf '%s\n' "$config" | grep -Eq 'missing options:.*public-address' ||
+				die 'unconfigured controller is not the expected QCA public-address case'
+			saw_controller=true
+			needs_address=true
+			break
+			;;
+		*) die 'unconfigured controller list is ambiguous' ;;
+		esac
+
+		info=
+		info_rc=0
+		info=$(run_mgmt --index "$index" info 2>&1) || info_rc=$?
+		if [ "$info_rc" = 0 ] &&
+			! printf '%s\n' "$info" | grep -Eqi 'failed|error|invalid index|no controller|unable'; then
+			printf '%s\n' "$info" |
+				grep -Eq "^hci$index:[[:space:]]+Primary controller" ||
+				die 'malformed btmgmt info reply'
+			current_address=$(printf '%s\n' "$info" | awk '
+				$1 == "addr" { count++; value = $2 }
+				END {
+					if (count == 1 && value ~ /^([0-9A-Fa-f][0-9A-Fa-f]:){5}[0-9A-Fa-f][0-9A-Fa-f]$/)
+						print toupper(value)
+					else
+						exit 1
+				}
+			') ||
+				die 'btmgmt info did not report a valid address'
+			if [ "$current_address" = "$address_upper" ]; then
+				:
+			elif [ "$current_address" = 00:00:00:00:5A:AD ]; then
+				needs_address=true
+				primary_placeholder=true
+				printf '%s\n' "$info" |
+					grep -Eq '^[[:space:]]*current settings:' ||
+					die 'btmgmt info omitted the placeholder power state'
+				if printf '%s\n' "$info" |
+					grep -Eq '^[[:space:]]*current settings:.*(^|[[:space:]])powered([[:space:]]|$)'; then
+					was_powered=true
+				fi
+			else
+				die 'controller address differs from provisioned identity'
+			fi
+			break
+		fi
+		if printf '%s\n' "$info" | grep -Eqi 'invalid index|no controller'; then
+			:
+		else
+			case $info_rc in 124|137|143) [ -z "$info" ] || die 'unexpected btmgmt info timeout output' ;;
+			*) die 'btmgmt info query failed' ;;
+			esac
+		fi
+	else
+		if printf '%s\n' "$config" | grep -Eqi 'invalid index|no controller'; then
+			:
+		else
+			case $config_rc in 124|137|143) [ -z "$config" ] || die 'unexpected btmgmt config timeout output' ;;
+			*) die 'btmgmt config query failed' ;;
+			esac
+		fi
+	fi
+
+	attempt=$((attempt + 1))
+	[ "$attempt" -lt "$attempt_limit" ] || {
+		[ "$saw_controller" = false ] ||
+			die "controller on index $index never produced a usable info reply"
+		die "no usable controller on index $index after $attempt_limit bounded attempts"
+	}
+	sleep 1
+done
+
+if [ "$needs_address" != true ]; then
+	say 'controller already has the provisioned public address; leaving it alone'
+	exit 0
+fi
+
+if [ "$primary_placeholder" = true ]; then
+	[ "$was_powered" = false ] || restore_needed=true
+	power_output=$(run_mgmt --index "$index" power off 2>&1) ||
+		die 'btmgmt power off failed'
+	printf '%s\n' "$power_output" |
+		grep -Eq "^hci$index[[:space:]]+Set Powered complete" ||
+		die 'controller did not confirm power off'
+fi
+output=$(run_mgmt --index "$address_index" public-addr "$address" 2>&1) ||
+	die 'btmgmt public-addr failed'
+printf '%s\n' "$output" |
+	grep -Eq "^hci$address_index[[:space:]]+Set Public Address complete" ||
+	die 'controller did not accept the address'
+
+# Setting the address makes the controller drop off the unconfigured index and
+# reappear as a primary one. Wait for that rather than handing bluetoothd a
+# controller mid-transition.
+attempt=0
+until info=$(run_mgmt --index "$index" info 2>&1) &&
+	printf '%s\n' "$info" | grep -q "^hci$index:[[:space:]]*Primary controller" &&
+	printf '%s\n' "$info" | grep -Fq "addr $address_upper "; do
+	attempt=$((attempt + 1))
+	[ "$attempt" -lt "$attempt_limit" ] ||
+		die "hci$index did not return after $attempt_limit bounded attempts"
+	sleep 1
+done
+
+if [ "$restore_needed" = true ]; then
+	restore_power || die 'could not restore the prior powered state'
+fi
+say "hci$index configured with the provisioned public address"

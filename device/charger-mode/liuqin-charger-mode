@@ -1,0 +1,229 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+#
+# Stage-1 charger-mode state machine.  This file is intentionally not copied
+# by the current initramfs builder: it is the reviewed input for a later,
+# separately identified M2 boot-image change.
+#
+# It has no mount, root-selection, slot, desktop, or shutdown operation.  Its
+# only terminal actions are the two explicit reboot requests made by the
+# separately pinned exit helper.
+
+set -u
+
+cmdline_file=${LIUQIN_CHARGER_CMDLINE_FILE:-/proc/cmdline}
+dev_root=${LIUQIN_CHARGER_DEV_ROOT:-/dev}
+cpu_root=${LIUQIN_CHARGER_CPU_ROOT:-/sys/devices/system/cpu}
+backlight=${LIUQIN_CHARGER_BACKLIGHT:-/sys/class/backlight/ktz8866-backlight}
+bat=${LIUQIN_CHARGER_BAT_ROOT:-/sys/class/power_supply/qcom-battmgr-bat}
+usb=${LIUQIN_CHARGER_USB_ROOT:-/sys/class/power_supply/qcom-battmgr-usb}
+blockdev=${LIUQIN_CHARGER_BLOCKDEV:-"/bin/busybox blockdev"}
+key_tool=${LIUQIN_CHARGER_KEY_TOOL:-/bin/liuqin-charger-mode-power-key}
+exit_tool=${LIUQIN_CHARGER_EXIT_TOOL:-/bin/liuqin-charger-mode-exit}
+log_file=${LIUQIN_CHARGER_LOG_FILE:-/dev/kmsg}
+pmsg_file=${LIUQIN_CHARGER_PMSG_FILE:-/dev/pmsg0}
+sleep_cmd=${LIUQIN_CHARGER_SLEEP_CMD:-sleep}
+interval=${LIUQIN_CHARGER_INTERVAL:-30}
+max_ticks=${LIUQIN_CHARGER_MAX_TICKS:-0}
+test_allow_regular=${LIUQIN_CHARGER_TEST_ALLOW_REGULAR:-0}
+
+case $interval in
+	*[!0-9]*|'') exit 64 ;;
+esac
+if [ "$interval" -lt 1 ] || [ "$interval" -gt 600 ]; then
+	exit 64
+fi
+case $max_ticks in
+	*[!0-9]*|'') exit 64 ;;
+esac
+
+charger_log() {
+	charger_log_line="liuqin-charger-mode: $*"
+	printf '%s\n' "$charger_log_line" >>"$log_file" 2>/dev/null || :
+	# PSTORE_PMSG is RAM-backed on liuqin.  It preserves the last charger
+	# evidence across a hard key reset without opening UFS or enabling USB.
+	[ ! -w "$pmsg_file" ] ||
+		printf '%s\n' "$charger_log_line" >>"$pmsg_file" 2>/dev/null || :
+}
+
+charger_value() {
+	[ -r "$1" ] || {
+		printf '%s\n' NA
+		return 0
+	}
+	IFS= read -r charger_read_value <"$1" || charger_read_value=NA
+	case $charger_read_value in
+		*' '*|*'	'*|*''*)
+			printf '%s\n' NA ;;
+		*) printf '%s\n' "$charger_read_value" ;;
+	esac
+}
+
+charger_is_block() {
+	[ -b "$1" ] && return 0
+	[ "$test_allow_regular" = 1 ] && [ -f "$1" ]
+}
+
+charger_cmdline_is_charger() {
+	[ -r "$cmdline_file" ] || return 1
+	IFS= read -r charger_cmdline <"$cmdline_file" || return 1
+	case " $charger_cmdline " in
+		*' androidboot.mode=charger '*) return 0 ;;
+		*) return 1 ;;
+	esac
+}
+
+# Lock every discovered SCSI/UFS node before doing any other state-changing
+# operation.  A missing or changing namespace is a failed proof, not an empty
+# set.  The production image uses device nodes; regular files are accepted only
+# by the explicit host-test switch above.
+charger_lock_ufs() {
+	charger_seen=false
+	charger_ok=true
+	charger_nodes=
+	for charger_node in "$dev_root"/sd*; do
+		[ -e "$charger_node" ] || [ -L "$charger_node" ] || continue
+		charger_is_block "$charger_node" || {
+			charger_ok=false
+			continue
+		}
+		charger_seen=true
+		charger_nodes="$charger_nodes $charger_node"
+		$blockdev --setro "$charger_node" 2>/dev/null || charger_ok=false
+	done
+	[ "$charger_seen" = true ] || return 1
+	for charger_node in $charger_nodes; do
+		[ "$($blockdev --getro "$charger_node" 2>/dev/null || true)" = 1 ] ||
+			charger_ok=false
+	done
+	# A namespace that changes while it is being locked is not proof that every
+	# UFS node is read-only.  Preserve the exact shell-glob order and compare a
+	# second independently classified snapshot before accepting the state.
+	charger_nodes_verified=
+	for charger_node in "$dev_root"/sd*; do
+		[ -e "$charger_node" ] || [ -L "$charger_node" ] || continue
+		charger_is_block "$charger_node" || {
+			charger_ok=false
+			continue
+		}
+		charger_nodes_verified="$charger_nodes_verified $charger_node"
+	done
+	[ "$charger_nodes_verified" = "$charger_nodes" ] || charger_ok=false
+	[ "$charger_ok" = true ]
+}
+
+# KTZ8866's documented stage-1 low-power sequence is bl_power=4 plus zero
+# brightness.  Both write/readback pairs are mandatory: accepting one side
+# would make a partially lit panel look like a safe charging state.
+charger_panel_off() {
+	[ -w "$backlight/bl_power" ] && [ -w "$backlight/brightness" ] || return 1
+	printf '%s\n' 4 >"$backlight/bl_power" || return 1
+	printf '%s\n' 0 >"$backlight/brightness" || return 1
+	[ "$(charger_value "$backlight/bl_power")" = 4 ] || return 1
+	[ "$(charger_value "$backlight/brightness")" = 0 ] || return 1
+}
+
+# This is the early-boot subset of liuqin-lowpower-apply.sh.  No service is
+# stopped here because the integration point is before a persistent root or a
+# desktop can start.  Refuse to call the policy complete if no cpufreq policy
+# can be proved capped at its advertised minimum.
+charger_apply_lowpower() {
+	charger_policy_seen=false
+	charger_policy_ok=true
+	for charger_policy in "$cpu_root"/cpufreq/policy*; do
+		[ -r "$charger_policy/cpuinfo_min_freq" ] || continue
+		charger_policy_seen=true
+		charger_min=$(charger_value "$charger_policy/cpuinfo_min_freq")
+		case $charger_min in *[!0-9]*|'') charger_policy_ok=false; continue ;; esac
+		[ -w "$charger_policy/scaling_max_freq" ] || {
+			charger_policy_ok=false
+			continue
+		}
+		printf '%s\n' "$charger_min" >"$charger_policy/scaling_max_freq" ||
+			charger_policy_ok=false
+		[ "$(charger_value "$charger_policy/scaling_max_freq")" = "$charger_min" ] ||
+			charger_policy_ok=false
+	done
+	[ "$charger_policy_seen" = true ] || return 1
+	for charger_cpu in 7 6 5 4 3 2 1; do
+		charger_online=$cpu_root/cpu$charger_cpu/online
+		[ -e "$charger_online" ] || continue
+		[ -w "$charger_online" ] || {
+			charger_policy_ok=false
+			continue
+		}
+		printf '%s\n' 0 >"$charger_online" || charger_policy_ok=false
+		[ "$(charger_value "$charger_online")" = 0 ] || charger_policy_ok=false
+	done
+	[ "$charger_policy_ok" = true ]
+}
+
+charger_status() {
+	printf 'capacity=%s status=%s voltage_now=%s usb_online=%s usb_type=%s' \
+		"$(charger_value "$bat/capacity")" \
+		"$(charger_value "$bat/status")" \
+		"$(charger_value "$bat/voltage_now")" \
+		"$(charger_value "$usb/online")" \
+		"$(charger_value "$usb/usb_type")"
+}
+
+charger_wait_key() {
+	if [ ! -x "$key_tool" ]; then
+		"$sleep_cmd" "$interval" 2>/dev/null || :
+		return 2
+	fi
+	charger_arm_after=0
+	if [ "$charger_first_key_window" = true ]; then
+		charger_arm_after=3000
+		charger_first_key_window=false
+	fi
+	"$key_tool" --arm-after-ms "$charger_arm_after" \
+		--timeout-ms "$((interval * 1000))"
+	return $?
+}
+
+charger_request_exit() {
+	charger_exit=$1
+	[ -x "$exit_tool" ] || {
+		charger_log "state=hold exit=$charger_exit refused=no-exit-helper"
+		return 1
+	}
+	charger_log "state=hold exit=$charger_exit requested"
+	"$exit_tool" "$charger_exit"
+	charger_exit_rc=$?
+	charger_log "state=hold exit=$charger_exit returned=$charger_exit_rc"
+	return "$charger_exit_rc"
+}
+
+charger_cmdline_is_charger || exit 64
+
+charger_ticks=0
+charger_first_key_window=true
+while :; do
+	charger_ufs=failed
+	charger_panel=failed
+	charger_lowpower=failed
+	charger_lock_ufs && charger_ufs=ro
+	if [ "$charger_ufs" = ro ]; then
+		charger_panel_off && charger_panel=off
+		charger_apply_lowpower && charger_lowpower=applied
+	fi
+	if [ "$charger_ufs:$charger_panel:$charger_lowpower" = ro:off:applied ]; then
+		charger_state=hold
+	else
+		charger_state=retry
+	fi
+	charger_log "state=$charger_state ufs=$charger_ufs panel=$charger_panel lowpower=$charger_lowpower $(charger_status)"
+
+	charger_wait_key
+	charger_key_rc=$?
+	case $charger_key_rc in
+		0) charger_request_exit normal || : ;;
+		10) charger_request_exit bootloader || : ;;
+		2) : ;;
+		*) charger_log "state=$charger_state key-helper=$charger_key_rc" ;;
+	esac
+
+	charger_ticks=$((charger_ticks + 1))
+	[ "$max_ticks" = 0 ] || [ "$charger_ticks" -lt "$max_ticks" ] || exit 0
+done

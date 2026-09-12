@@ -1,0 +1,15 @@
+[Unit]
+Description=liuqin SSC real accelerometer sample gate
+Documentation=file:///usr/share/doc/liuqin/SENSORS_AUTOROTATE_INTEGRATION.zh-CN.md
+Requires=liuqin-hexagonrpcd-sdsp.service
+After=liuqin-hexagonrpcd-sdsp.service
+Before=iio-sensor-proxy.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/liuqin-ssc-sample-gate
+TimeoutStartSec=42s
+RemainAfterExit=yes
+
+[Install]
+WantedBy=liuqin-sensor-stack.target

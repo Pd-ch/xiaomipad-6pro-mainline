@@ -1,0 +1,15 @@
+[Unit]
+Description=liuqin persistent-root storage guard
+DefaultDependencies=no
+# Stage 1 has already waited for, snapshotted and moved the complete /dev
+# namespace before systemd starts.  Waiting for udev-settle here duplicates
+# that gate and costs minutes under emulation without adding authority.
+Before=basic.target network-pre.target display-manager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/liuqin-gnome-storage-guard
+RemainAfterExit=yes
+
+[Install]
+RequiredBy=basic.target

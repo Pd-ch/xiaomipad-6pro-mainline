@@ -1,0 +1,70 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+#
+# Install the tablet's private, factory WLAN identity before NetworkManager can
+# inspect wlan0.  This accepts no fallback/test identity: an unknown identity
+# is preferable to two tablets using the same address on a real LAN.
+set -eu
+
+state=${LIUQIN_WLAN_MAC_STATE:-/var/lib/liuqin-private/wlan-mac}
+sys_class_net=${LIUQIN_SYS_CLASS_NET:-/sys/class/net}
+ip=${LIUQIN_IP:-/usr/sbin/ip}
+wait_seconds=${LIUQIN_WLAN_MAC_WAIT_SECONDS:-30}
+
+die() { printf '%s\n' "liuqin-wlan-mac: $*" >&2; exit 1; }
+
+[ -x "$ip" ] || die 'ip is unavailable'
+case $wait_seconds in ''|*[!0-9]*) die 'invalid wait limit';; esac
+
+# A symlink lets an attacker swap the object after metadata inspection.  The
+# state directory is root-only, but reject it anyway: this helper is an
+# identity boundary, not a convenient settings reader.
+[ -f "$state" ] && [ ! -L "$state" ] || die 'private WLAN identity is absent'
+metadata=$(stat -c '%a:%u:%g' "$state")
+if [ "${LIUQIN_WLAN_MAC_TEST_ALLOW_UNPRIVILEGED:-0}" = 1 ]; then
+	# Host mocks cannot chown their fixture to root.  This bypass is deliberately
+	# opt-in, changes no production unit environment, and still requires 0600.
+	[ "${metadata%%:*}" = 600 ] || die 'private WLAN identity metadata is invalid'
+else
+	[ "$metadata" = '600:0:0' ] || die 'private WLAN identity metadata is invalid'
+fi
+[ "$(wc -l < "$state" | tr -d ' ')" = 1 ] || die 'private WLAN identity is not one line'
+mac=$(IFS= read -r value < "$state" && printf '%s' "$value")
+LC_ALL=C printf '%s\n' "$mac" | grep -Eq '^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$' ||
+	die 'private WLAN identity format is invalid'
+mac=$(printf '%s' "$mac" | tr 'A-F' 'a-f')
+[ "$mac" != 00:00:00:00:00:00 ] && [ "$mac" != ff:ff:ff:ff:ff:ff ] ||
+	die 'private WLAN identity is reserved'
+first_octet=${mac%%:*}
+case ${first_octet#?} in
+1|3|5|7|9|b|d|f) die 'private WLAN identity is multicast';;
+esac
+
+find_wlan()
+{
+	for node in "$sys_class_net"/*; do
+		[ -e "$node/device/vendor" ] && [ -e "$node/device/device" ] || continue
+		[ "$(cat "$node/device/vendor" 2>/dev/null || :)" = 0x17cb ] || continue
+		[ "$(cat "$node/device/device" 2>/dev/null || :)" = 0x1103 ] || continue
+		basename "$node"
+		return 0
+	done
+	return 1
+}
+
+elapsed=0
+while ! iface=$(find_wlan); do
+	[ "$elapsed" -lt "$wait_seconds" ] || die 'QCA6490 WLAN netdev did not appear'
+	sleep 1
+	elapsed=$((elapsed + 1))
+done
+
+# Do not echo the MAC or enable shell tracing.  `ip` receives it only as a
+# direct argument; neither the journal nor this helper's status output records
+# it.  Taking the link down avoids a race with an early carrier event.
+"$ip" link set dev "$iface" down
+"$ip" link set dev "$iface" address "$mac"
+[ "$(cat "$sys_class_net/$iface/address" 2>/dev/null || :)" = "$mac" ] ||
+	die 'kernel did not retain the private WLAN identity'
+"$ip" link set dev "$iface" up
+printf '%s\n' 'liuqin-wlan-mac: configured private WLAN identity'

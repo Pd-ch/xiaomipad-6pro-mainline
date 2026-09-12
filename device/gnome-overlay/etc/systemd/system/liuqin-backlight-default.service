@@ -1,0 +1,13 @@
+[Unit]
+Description=Restore the liuqin normal-desktop backlight default
+Wants=systemd-backlight@backlight:ktz8866-backlight.service
+After=systemd-backlight@backlight:ktz8866-backlight.service
+Before=display-manager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/liuqin-backlight-default
+RemainAfterExit=yes
+
+[Install]
+WantedBy=graphical.target

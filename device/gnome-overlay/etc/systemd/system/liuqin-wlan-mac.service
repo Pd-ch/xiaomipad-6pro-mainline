@@ -1,0 +1,16 @@
+[Unit]
+Description=liuqin private WLAN MAC admission
+Documentation=file:///usr/local/sbin/liuqin-wlan-mac
+# NetworkManager must never see the factory-zero address first.  The matching
+# drop-in makes this a required, ordered dependency, so a missing/corrupt
+# private secret fails networking closed rather than silently falling back to
+# a shared test identity.
+Before=NetworkManager.service network-pre.target
+After=systemd-udev-settle.service
+Wants=systemd-udev-settle.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/liuqin-wlan-mac
+TimeoutStartSec=45
+RemainAfterExit=yes

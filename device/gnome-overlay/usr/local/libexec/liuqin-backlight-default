@@ -1,0 +1,41 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# One normal-systemd-boot correction after Canonical restores stale state.
+set -eu
+
+backlight=${LIUQIN_BACKLIGHT_ROOT:-/sys/class/backlight/ktz8866-backlight}
+cmdline=${LIUQIN_BACKLIGHT_CMDLINE:-/proc/cmdline}
+
+fail()
+{
+	printf 'liuqin-backlight-default: %s\n' "$*" >&2
+	exit 1
+}
+
+# Charger mode is diverted in stage 1 and must never reach this unit.  Retain
+# this exact-token guard so even a broken diversion cannot turn the panel on.
+kernel_args=" $(cat "$cmdline" 2>/dev/null || :) "
+case $kernel_args in
+*' androidboot.mode=charger '*)
+	printf 'liuqin-backlight-default: charger mode, leaving backlight untouched\n'
+	exit 0
+	;;
+esac
+
+[ -d "$backlight" ] || fail "backlight device is unavailable: $backlight"
+for field in brightness actual_brightness max_brightness bl_power; do
+	path=$backlight/$field
+	[ -e "$path" ] || fail "missing $field"
+done
+[ "$(cat "$backlight/max_brightness")" = 2047 ] ||
+	fail 'refusing a backlight whose maximum is not 2047'
+[ -w "$backlight/brightness" ] && [ -w "$backlight/bl_power" ] ||
+	fail 'backlight controls are not writable'
+
+printf '%s\n' 1500 >"$backlight/brightness" || fail 'brightness write failed'
+printf '%s\n' 0 >"$backlight/bl_power" || fail 'bl_power write failed'
+[ "$(cat "$backlight/brightness")" = 1500 ] || fail 'brightness readback is not 1500'
+[ "$(cat "$backlight/actual_brightness")" = 1500 ] || fail 'actual brightness readback is not 1500'
+[ "$(cat "$backlight/bl_power")" = 0 ] || fail 'bl_power readback is not 0'
+
+printf 'liuqin-backlight-default: brightness=1500 actual=1500 max=2047 bl_power=0\n'

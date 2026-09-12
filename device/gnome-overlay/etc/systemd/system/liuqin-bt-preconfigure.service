@@ -1,0 +1,11 @@
+[Unit]
+Description=liuqin QCA6490 provisioned public address before BlueZ
+Documentation=file:///usr/local/sbin/liuqin-bt-public-addr
+Before=bluetooth.service
+PartOf=bluetooth.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/liuqin-bt-public-addr
+RemainAfterExit=yes
+TimeoutStartSec=150

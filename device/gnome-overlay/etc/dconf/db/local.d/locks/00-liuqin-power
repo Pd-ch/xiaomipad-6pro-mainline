@@ -1,0 +1,3 @@
+# liuqin-power-keyd is the sole owner of physical KEY_POWER duration policy.
+# A stale per-user `interactive` value would race it and can confirm Power Off.
+/org/gnome/settings-daemon/plugins/power/power-button-action

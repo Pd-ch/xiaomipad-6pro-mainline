@@ -1,0 +1,4 @@
+# component<TAB>version<TAB>repository<TAB>commit<TAB>tree
+libssc	0.4.4	https://codeberg.org/DylanVanAssche/libssc.git	0cf77b93b55752da34dca2dcecc06fca8665184b	2c94245c85c85c3283d77633f42b84b73128b851
+iio-sensor-proxy	3.9	https://gitlab.freedesktop.org/hadess/iio-sensor-proxy.git	0085ddf8ecb173a1c5fcf2344aa40e561125354f	5728fd445fedb01ec30716b31957468652682ce7
+hexagonrpc	0.5.0-g598b591	https://github.com/linux-msm/hexagonrpc.git	598b591ae9da6a6cfe2ca5ea78998019ca6395ea	10bc889114ac1f719ad35ce15901d7b7905bc9c1
