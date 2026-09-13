@@ -4,14 +4,14 @@
 
 ## Availability
 
-The public installer and installation images are not released yet. Installation
-commands will accompany a tested release bundle.
+Download all files from the same release and follow the [installation steps](INSTALL-TESTING.md).
+The system archive may be split into several files; the guide includes the joining command.
 
 ## Supported Device
 
 Xiaomi Pad 6 Pro, codename `liuqin`, SM8475. Other Xiaomi Pad models are not
-compatible. The installer currently targets one known **256 GB partition layout**
-for testing; initial installation and recovery are not yet device-validated.
+compatible. Initial installation and first boot have been tested on one known
+**256 GB partition layout**. Android recovery has not yet been independently validated.
 128 GB, 512 GB, other capacities, modified layouts and slot-B installation are
 unverified and unsupported. Equal capacity does not imply equal layout. Do not
 change constants or bypass checks to force an installation.
@@ -49,5 +49,5 @@ remain installed.
 
 A supported release will provide matching boot and root filesystem images,
 installation tools, checksums, source revisions, supported storage layouts and
-tested recovery instructions. Verify the entire bundle before installation.
+recovery requirements. The installer verifies images before accessing the device.
 Kernel build artifacts alone are not installation images.

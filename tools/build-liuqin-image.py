@@ -29,8 +29,12 @@ def main():
     parser.add_argument('--out', type=Path, default=project / 'out/image')
     parser.add_argument('--stage', choices=['all', 'modules', 'debs', 'copy', 'install',
                                           'assemble', 'manifest', 'boot', 'runtime', 'installer',
-                                          'pack', 'bundle'], default='all')
+                                          'pack', 'bundle', 'release-assets'], default='all')
+    parser.add_argument('--device-tested', action='store_true',
+                        help='Mark release assets after completing device installation tests')
     args = parser.parse_args()
+    if args.device_tested and args.stage != 'release-assets':
+        parser.error('--device-tested is only valid with --stage release-assets')
     supplied = json.loads(args.inputs.read_text())
     if set(supplied) != INPUTS or not all(isinstance(v, str) and v for v in supplied.values()):
         parser.error('Input keys must match: ' + ', '.join(sorted(INPUTS)))
@@ -84,6 +88,26 @@ def main():
     except BlockingIOError:
         parser.error('another assembly owns this output')
     for stage in selected:
+        if stage == 'release-assets':
+            destination = out / 'release-assets'
+            shutil.copytree(out / 'bundle', destination,
+                            ignore=shutil.ignore_patterns('rootfs.tar.gz'))
+            metadata = json.loads((destination / 'bundle.json').read_text())
+            for name in ('INSTALL-TESTING.md', 'INSTALL-TESTING.zh-CN.md'):
+                shutil.copyfile(project / 'docs' / name, destination / name)
+                metadata['files'][name] = hashlib.sha256((destination / name).read_bytes()).hexdigest()
+            if args.device_tested:
+                metadata['status'] = 'DEVICE_TESTED'
+                metadata['tested_storage_layout'] = 'known 256 GB layout'
+            # Each GitHub Release asset must remain below its 2 GiB limit.
+            subprocess.run(['split', '-b', '1900M', '-d', '-a', '2',
+                            str(out / 'bundle/rootfs.tar.gz'),
+                            str(destination / 'rootfs.tar.gz.part-')], check=True)
+            (destination / 'bundle.json').write_text(json.dumps(metadata, indent=2) + '\n')
+            hashes = dict(metadata['files'])
+            hashes['bundle.json'] = hashlib.sha256((destination / 'bundle.json').read_bytes()).hexdigest()
+            (destination / 'SHA256SUMS').write_text(''.join(f'{h}  {n}\n' for n, h in hashes.items()))
+            continue
         if stage == 'bundle':
             destination = out / 'bundle'
             destination.mkdir()

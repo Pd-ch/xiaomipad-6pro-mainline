@@ -10,8 +10,8 @@ Usage tips, AI discussions and community exchange, primarily in Chinese. [中文
 This project is only for the **Xiaomi Pad 6 Pro (liuqin, SM8475)**. Other Xiaomi Pad models are not compatible.
 
 - **Data loss**: unlocking the bootloader and performing an initial installation erase user data. Back up your files first.
-- **Storage and layout**: installation testing currently targets one known **256 GB partition layout**, not every 256 GB device. Other capacities, modified partition layouts and slot-B installation are unverified and unsupported. Do not bypass the checks.
-- **Validation stage**: the complete installer's initial installation, first boot and Android recovery still require device testing. The hardware status table is not an installation-bundle acceptance report.
+- **Storage and layout**: installation has been tested on one known **256 GB partition layout**, not every 256 GB device. Other capacities, modified partition layouts and slot-B installation are unverified and unsupported. Do not bypass the checks.
+- **Validation scope**: initial installation, first boot, rotation, touch, the magnetic keyboard and audio have been tested. Android recovery still requires separate device validation.
 - **Installation layout**: Ubuntu is installed as the sole operating system. Android dual boot is not provided.
 - **Recovery preparation**: obtain the matching stock firmware and read the [data and recovery instructions](docs/FLASHING.md#data-and-recovery) before installing.
 - **Hardware limitations**: some features are incomplete. Review the hardware support table below.
@@ -21,7 +21,7 @@ Factory calibration and device addresses must come from the same tablet; never c
 
 ## 🚀 Getting Started
 
-Public installation images are not available yet.
+Use a complete installation bundle from a project release. Do not mix files from different versions.
 
 | I want to | Read |
 |---|---|
@@ -33,8 +33,8 @@ Prebuilt installation bundles will accompany project releases, with matching boo
 
 ## Hardware Support
 
-This describes the current Xiaomi Pad 6 Pro (liuqin) port, not acceptance of the new
-installation bundle. Component identities come from confirmed board information
+This describes hardware support and known limitations for Xiaomi Pad 6 Pro (liuqin).
+Component identities come from confirmed board information
 and device trees; other batches, capacities and accessory combinations are not implied tested.
 
 ✅ Working · 🟡 Partial · ❌ Unsupported · 🧪 Unverified
@@ -78,7 +78,7 @@ and device trees; other batches, capacities and accessory combinations are not i
 | Browser hardware decoding | Browser / V4L2 integration | 🧪 Unverified | Video playback alone does not prove hardware decoding |
 | Hardware encoding | Qualcomm video engine | 🧪 Unverified | Hardware encoding workflows not tested |
 | Front and rear cameras | Qualcomm CAMSS / camera sensors | ❌ Unsupported | No working capture or application integration |
-| Accelerometer / auto-rotation | SLPI / SSC / iio-sensor-proxy | 🟡 Partial | Rotation failures remain in the current installation during first login or with the magnetic keyboard; a fix is not yet validated |
+| Accelerometer / auto-rotation | SLPI / SSC / iio-sensor-proxy | ✅ Working | First boot, login screen, desktop rotation and magnetic-keyboard landscape use |
 | Gyroscope / magnetometer | SSC sensor path | 🧪 Unverified | Application-usable measurements not confirmed by accelerometer support |
 | Ambient light sensor | SSC light-sensor path | 🧪 Unverified | Real light measurements not fully validated |
 | Automatic brightness | Desktop brightness policy | ❌ Unsupported | Automatic brightness control not integrated |

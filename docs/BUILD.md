@@ -177,5 +177,20 @@ local build. Its artifacts are kernel build outputs, not installable Ubuntu
 releases. Kernel-repository development builds share the same action.
 `tools/build-liuqin-image.py` assembles matching system artifacts with resumable
 stages. The image workflow requires a configured dedicated runner; see
-[CI setup](CI.md). The [test installer](INSTALL-TESTING.md) remains unverified on
-the final device candidate and is not a supported installation release.
+[CI setup](CI.md). Follow the [installation steps](INSTALL-TESTING.md) for device
+testing. A CI build alone does not validate a new installation bundle.
+
+## Release Assets
+
+After completing device installation tests, export the existing bundle without
+rebuilding its images:
+
+```sh
+sudo python3 tools/build-liuqin-image.py --inputs inputs.local.json \
+  --kernel-out out/kernel --out out/image --stage release-assets --device-tested
+```
+
+Upload the files in `out/image/release-assets/` to the main project's GitHub
+Release. The root filesystem is split into files below GitHub's per-asset limit;
+the installation guide explains how to join them. Omit `--device-tested` when
+exporting a bundle that has not completed device testing.

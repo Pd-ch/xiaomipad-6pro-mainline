@@ -1,7 +1,7 @@
-# Installation Testing
+# Installation Steps
 
-The installer is under development. No supported installation release is
-available yet. These steps are for an attended test with a recoverable tablet.
+Initial installation and first boot have been tested on the known 256 GB layout.
+This remains an experimental device port. Keep the tablet attended and prepare a recovery plan.
 
 ## Requirements
 
@@ -13,19 +13,26 @@ available yet. These steps are for an attended test with a recoverable tablet.
 - A matching original Xiaomi Fastboot ROM and an Android recovery plan prepared
   before installation. The installer does not back up personal userdata.
 
-Check the downloaded bundle first:
+Download all files from the same release. If the system archive is split, join it
+in the bundle directory:
 
 ```sh
-sha256sum -c SHA256SUMS
-python3 install.py --bundle . --check
+if [ ! -f rootfs.tar.gz ]; then
+  cat rootfs.tar.gz.part-* > rootfs.tar.gz
+fi
 ```
 
-For an explicitly authorized, unverified candidate test:
+To install after agreeing to erase userdata, run the following. Images are
+verified automatically before any device access:
 
 ```sh
 python3 install.py --bundle . --serial DEVICE_SERIAL \
-  --backup /path/to/new-private-backup --erase-userdata --allow-unverified
+  --backup /path/to/new-private-backup --erase-userdata
 ```
+
+Use `python3 install.py --bundle . --check` for an optional local-only check.
+Locally built or CI-generated bundles that have not passed device testing require
+`--allow-unverified` for an explicitly attended test.
 
 The installer boots `installer.img` in RAM, waits for its USB network, backs up
 boot_a, boot_b and persist, verifies those backups, then installs the rootfs and
@@ -69,5 +76,5 @@ variant. Preserve the anti-rollback checks. Never restore another tablet's
 persist or calibration. Keep the bootloader unlocked while non-stock images
 remain. The original ROM is an upstream input, not duplicated in this repository.
 
-The current installer and this recovery route still require end-to-end device
-testing. A successful build or local checksum check does not establish recovery.
+Android recovery still requires independent device testing. Successful Ubuntu
+installation does not establish that Android recovery has been validated.
