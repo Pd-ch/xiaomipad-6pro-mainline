@@ -84,7 +84,8 @@ def main():
                     'KBUILD_EXTMOD', 'KBUILD_KCONFIG', 'LOCALVERSION',
                     'KCFLAGS', 'KAFLAGS', 'KCPPFLAGS', 'LDFLAGS_vmlinux'):
             env.pop(key, None)
-        make = ['make', '-C', str(source), 'O=' + str(out)]
+        # The locked GCC configuration does not use Rust; ignore host Rust installs.
+        make = ['make', '-C', str(source), 'O=' + str(out), 'RUSTC=false']
         subprocess.run(make + ['defconfig'], env=env, check=True)
         subprocess.run(['sh', str(source / 'scripts/kconfig/merge_config.sh'),
                         '-m', '-O', str(out), str(out / '.config'),
