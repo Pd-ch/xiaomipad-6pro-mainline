@@ -21,7 +21,7 @@ Factory calibration and device addresses must come from the same tablet; never c
 
 ## 🚀 Getting Started
 
-Use a complete installation bundle from a project release. Do not mix files from different versions.
+Use a complete installation bundle from [GitHub Releases](https://github.com/yzddmr6/xiaomipad-6pro-mainline/releases). Do not mix files from different versions.
 
 | I want to | Read |
 |---|---|
@@ -29,7 +29,7 @@ Use a complete installation bundle from a project release. Do not mix files from
 | Build the kernel and device components | [Build guide](docs/BUILD.md) |
 | Restore Android | [Data and recovery instructions](docs/FLASHING.md#data-and-recovery) |
 
-Prebuilt installation bundles will accompany project releases, with matching boot and root filesystem images, installation tools and checksums.
+Prebuilt installation bundles include matching boot and root filesystem images, installation tools and checksums.
 
 ## Hardware Support
 
@@ -109,7 +109,7 @@ The accounts listed above are also available for usage discussions.
 | Repository | Contents |
 |---|---|
 | xiaomipad-6pro-mainline | Device configuration, userspace integration, build and installation tools, documentation |
-| linux-sm8450-liuqin | Complete Linux kernel source and device adaptation commits |
+| [linux-sm8450-liuqin](https://github.com/yzddmr6/linux-sm8450-liuqin) | Complete Linux kernel source and device adaptation commits |
 
 [kernel/source.json](kernel/source.json) records the kernel revision used by the build.
 The device branch is `liuqin-6.17`. Contributions to drivers, tools and documentation are welcome;

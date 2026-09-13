@@ -21,7 +21,7 @@
 
 ## 🚀 获取与安装
 
-请使用项目 Release 随附的完整安装包，不要混用不同版本的文件。
+请从 [GitHub Releases](https://github.com/yzddmr6/xiaomipad-6pro-mainline/releases) 下载完整安装包，不要混用不同版本的文件。
 
 | 我想要 | 入口 |
 |---|---|
@@ -29,7 +29,7 @@
 | 自行编译内核和设备组件 | [构建指南](docs/BUILD.zh-CN.md) |
 | 恢复 Android | [数据与恢复说明](docs/FLASHING.zh-CN.md#数据与恢复) |
 
-预编译安装包将随本项目的版本发布提供，包括匹配的启动镜像、根文件系统、安装工具与校验文件。
+预编译安装包包括匹配的启动镜像、根文件系统、安装工具与校验文件。
 
 ## 硬件支持
 
@@ -107,7 +107,7 @@ Ubuntu 软件包通过 APT 管理。项目内核与设备组件的更新方式�
 | 仓库 | 内容 |
 |---|---|
 | xiaomipad-6pro-mainline | 设备配置、用户态适配、构建与安装工具、文档 |
-| linux-sm8450-liuqin | 完整 Linux 内核源码与设备适配提交 |
+| [linux-sm8450-liuqin](https://github.com/yzddmr6/linux-sm8450-liuqin) | 完整 Linux 内核源码与设备适配提交 |
 
 构建使用的内核提交记录在 [kernel/source.json](kernel/source.json)。
 内核分支为 `liuqin-6.17`。欢迎改进驱动、构建工具与文档，提交方式见
