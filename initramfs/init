@@ -929,6 +929,24 @@ done
 
 start_stage1_telnet() {
 	if [ "$ufs_safe" = true ]; then
+		if [ -f /etc/liuqin-installer ]; then
+			mkdir -p /dev/disk/by-partlabel || return 1
+			for label in boot_a boot_b persist userdata; do
+				target=
+				for info in /sys/class/block/sd*/uevent; do
+					if "$BB" grep -qx "PARTNAME=$label" "$info"; then
+						[ -z "$target" ] || { log "duplicate installer partition: $label"; return 1; }
+						node=${info%/uevent}; node=${node##*/}
+						target=/dev/$node
+					fi
+				done
+				[ -n "$target" ] && [ -b "$target" ] &&
+					[ "$("$BB" blockdev --getro "$target")" = 1 ] || {
+						log "installer partition missing or writable: $label"; return 1;
+					}
+				ln -s "$target" "/dev/disk/by-partlabel/$label" || return 1
+			done
+		fi
 		log "development-only unauthenticated shell: telnet 192.168.7.2 2323"
 		telnetd -b 192.168.7.2:2323 -l /bin/sh
 	else
