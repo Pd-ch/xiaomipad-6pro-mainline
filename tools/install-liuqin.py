@@ -66,6 +66,8 @@ def main():
     parser.add_argument('--backup', type=Path)
     parser.add_argument('--erase-userdata', action='store_true')
     parser.add_argument('--allow-unverified', action='store_true', help='Explicitly test an offline-only bundle')
+    parser.add_argument('--enable-rescue', action='store_true',
+                        help='Enable unauthenticated root rescue access after installation (trusted USB only)')
     args = parser.parse_args()
     bundle = args.bundle.resolve()
     manifest = json.loads((bundle / 'bundle.json').read_text())
@@ -163,6 +165,8 @@ def main():
         install = ['sh', '/usr/lib/liuqin/install-root.sh', boot_id, url,
                    manifest['files']['rootfs.tar.gz'], str((bundle / 'rootfs.tar.gz').stat().st_size),
                    'ERASE-LIUQIN-USERDATA']
+        if args.enable_rescue:
+            install.append('ENABLE-USB-RESCUE')
         print('Installing Ubuntu; userdata will be erased after input checks.', flush=True)
         result = remote(shlex.join(install), 3600)
         if b'liuqin-install: ROOT_INSTALLED' not in result:

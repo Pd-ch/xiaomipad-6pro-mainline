@@ -42,6 +42,10 @@ after a partial installation. Preserve the error output and backup first.
 
 ## Desktop Diagnostics
 
+For an attended installation test, add `--enable-rescue` to the installation
+command to make the rescue shell available from the first boot. This is an
+explicit opt-in to unauthenticated root access, not the default installation.
+
 On the tablet, enable the rescue shell with:
 
 ```sh

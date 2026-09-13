@@ -27,6 +27,7 @@ with tempfile.TemporaryDirectory() as directory:
     (root / 'bundle.json').write_text(json.dumps({'device': 'liuqin', 'files': files}))
     args = ['python3', str(project / 'tools/install-liuqin.py'), '--bundle', str(root), '--check']
     subprocess.run(args, check=True)
+    subprocess.run(args + ['--enable-rescue'], check=True)
     (root / 'boot.img').write_bytes(b'corrupted')
     assert subprocess.run(args, capture_output=True).returncode != 0
     (root / 'boot.img').write_bytes(b'boot.img')
@@ -80,4 +81,8 @@ with patch.object(installer.socket, 'create_connection', side_effect=lambda *a, 
 thread.join()
 listener.close()
 assert subprocess.run(['sh', str(project / 'tools/lib/install-root.sh')], capture_output=True).returncode != 0
+invalid = subprocess.run(['sh', str(project / 'tools/lib/install-root.sh'),
+                          'unused', 'unused', 'unused', 'unused',
+                          'ERASE-LIUQIN-USERDATA', 'INVALID'], capture_output=True)
+assert invalid.returncode != 0 and b'unsupported rescue option' in invalid.stderr
 print('PASS: checksum rejection, local-only check, CRLF command framing and missing-authorization refusal')

@@ -3,8 +3,10 @@
 # Device-side installer, intended only for the dedicated read-only RAM image.
 set -eu
 die() { printf 'liuqin-install: %s\n' "$*" >&2; exit 1; }
-[ "$#" = 5 ] || die 'usage: install-root.sh BOOT_ID ROOTFS_URL SHA256 BYTES ERASE-LIUQIN-USERDATA'
+[ "$#" = 5 ] || [ "$#" = 6 ] || die 'usage: install-root.sh BOOT_ID ROOTFS_URL SHA256 BYTES ERASE-LIUQIN-USERDATA [ENABLE-USB-RESCUE]'
 [ "$5" = ERASE-LIUQIN-USERDATA ] || die 'explicit data-erasure acknowledgement required'
+rescue=${6:-}
+case $rescue in ''|ENABLE-USB-RESCUE) ;; *) die 'unsupported rescue option' ;; esac
 [ "$(cat /proc/sys/kernel/random/boot_id)" = "$1" ] || die 'RAM boot identity changed'
 [ "$(cat /etc/liuqin-installer 2>/dev/null)" = liuqin ] || die 'not the installer RAM image'
 ln -sf /proc/self/fd/0 /dev/stdin
@@ -83,6 +85,9 @@ mkdir /mnt/install/native-root
 /usr/bin/tar -xzf "$archive" -C /mnt/install/native-root \
 	--numeric-owner --same-owner --same-permissions --acls --xattrs --xattrs-include='*' --warning=no-timestamp
 PERSIST_SRC=/run/persist sh /usr/lib/liuqin/provision.sh /mnt/install/native-root
+if [ "$rescue" = ENABLE-USB-RESCUE ]; then
+	touch /mnt/install/native-root/etc/liuqin-rescue-enabled
+fi
 [ -n "$(/usr/sbin/getcap /mnt/install/native-root/usr/lib/snapd/snap-confine)" ] ||
 	die 'snap-confine capability was not restored'
 # Verify immutable boot-contract files after extraction and provisioning.
