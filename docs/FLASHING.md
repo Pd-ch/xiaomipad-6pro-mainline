@@ -10,7 +10,18 @@ commands will accompany a tested release bundle.
 ## Supported Device
 
 Xiaomi Pad 6 Pro, codename `liuqin`, SM8475. Other Xiaomi Pad models are not
-compatible. Supported storage variants will be listed with the release.
+compatible. The installer currently targets one known **256 GB partition layout**
+for testing; initial installation and recovery are not yet device-validated.
+128 GB, 512 GB, other capacities, modified layouts and slot-B installation are
+unverified and unsupported. Equal capacity does not imply equal layout. Do not
+change constants or bypass checks to force an installation.
+
+The bootloader must be unlocked and slot A active. Device-side checks require
+Linux sysfs values of 493854720 sectors for sda, start 22065152 and size 471789528
+for sda35, and partition name userdata. These counts use 512-byte sectors, not
+filesystem block sizes. Unknown or mismatching device, layout, slot or session
+identity must stop installation. Checks reduce risk but do not guarantee recovery
+or replace real installation testing.
 
 ## Data and Recovery
 

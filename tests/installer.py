@@ -10,6 +10,7 @@ import socket
 import subprocess
 import tempfile
 import threading
+from types import SimpleNamespace
 from unittest.mock import patch
 
 project = Path(__file__).resolve().parents[1]
@@ -28,6 +29,32 @@ with tempfile.TemporaryDirectory() as directory:
     subprocess.run(args, check=True)
     (root / 'boot.img').write_bytes(b'corrupted')
     assert subprocess.run(args, capture_output=True).returncode != 0
+    (root / 'boot.img').write_bytes(b'boot.img')
+    (root / 'bundle.json').write_text(json.dumps({'device': 'liuqin', 'files': files,
+                                               'status': 'OFFLINE_ASSEMBLED'}))
+    for reported in ('0x100000', hex(471789528 * 512 + 512), 'unknown'):
+        calls = []
+
+        def fastboot(command, **kwargs):
+            calls.append(command)
+            assert command[:4] == ['fastboot', '-s', 'TEST_SERIAL', 'getvar']
+            name = command[-1]
+            values = {'product': 'liuqin', 'unlocked': 'yes', 'current-slot': 'a',
+                      'partition-size:userdata': reported}
+            return SimpleNamespace(stdout=name + ': ' + values[name] + '\n')
+
+        with patch.object(installer.sys, 'argv', ['install.py', '--bundle', str(root),
+                          '--serial', 'TEST_SERIAL', '--backup', str(root.parent / 'unused-backup'),
+                          '--erase-userdata', '--allow-unverified']), \
+             patch.object(installer.subprocess, 'run', side_effect=fastboot):
+            try:
+                installer.main()
+            except (SystemExit, RuntimeError):
+                pass
+            else:
+                raise AssertionError('unsupported or unknown userdata size was accepted')
+        assert calls[-1][-1] == 'partition-size:userdata'
+    print('PASS: wrong and unknown layouts rejected before RAM boot or partition writes')
 
 # A local fake shell supplies a CRLF transcript containing the echoed command.
 # Only complete marker lines may finish the transaction, not the echo itself.

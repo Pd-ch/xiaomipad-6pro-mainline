@@ -55,3 +55,21 @@ The workflow does not create a public Release or mark a bundle device-tested.
 GitHub execution still requires publishing the repositories and configuring the
 runner. Installation and Android recovery must be tested on the final candidate
 before a supported installation version is published.
+
+## Public Delivery
+
+Installation versions belong in tagged Releases of the integration repository,
+not another repository, the source Git tree or Git LFS. Actions artifacts are
+temporary build results, not supported installation releases.
+
+GitHub [limits each Release asset to under 2 GiB](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
+The current desktop archive exceeds that limit. Public delivery therefore needs
+versioned parts (for example 1 GiB each), checksums and installer-managed joining
+and verification. This Release transport step is not implemented yet; the local
+test bundle currently contains an unsplit rootfs archive.
+
+Required board firmware is included in the assembled system and boot images.
+A matching firmware package may also be attached for builders, without another
+firmware repository. Upstream Ubuntu images, unmodified upstream components and
+full stock ROMs are not mirrored here. Per-device calibration and addresses are
+always obtained from the user's own tablet and are never Release assets.

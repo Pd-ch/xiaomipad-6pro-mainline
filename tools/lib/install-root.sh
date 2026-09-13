@@ -13,7 +13,9 @@ tr '\000' '\n' </proc/device-tree/compatible | grep -qx xiaomi,liuqin || die 'wr
 [ "$(cat /sys/class/block/sda35/start)" = 22065152 ] || die 'userdata start mismatch'
 [ "$(cat /sys/class/block/sda35/size)" = 471789528 ] || die 'userdata size mismatch'
 grep -q '^PARTNAME=userdata$' /sys/class/block/sda35/uevent || die 'not userdata'
-grep -qE '^/dev/sda35 ' /proc/mounts && die 'userdata is mounted'
+device_number=$(cat /sys/class/block/sda35/dev)
+awk -v device="$device_number" '$3 == device {found=1} END {exit !found}' /proc/self/mountinfo &&
+	die 'userdata is mounted (including through a device alias)'
 [ "$(/bin/busybox blockdev --getro /dev/sda35)" = 1 ] || die 'userdata is not initially read-only'
 battery=
 for supply in /sys/class/power_supply/*; do

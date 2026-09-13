@@ -101,8 +101,16 @@ def main():
     # The current boot contract supports slot A only; never switch slots implicitly.
     if not re.search(r'current-slot:\s*a\b', fastboot('getvar', 'current-slot')):
         parser.error('slot A must be active before this installation')
-    size = re.search(r'partition-size:boot_a:\s*(0x[0-9a-fA-F]+)', fastboot('getvar', 'partition-size:boot_a'))
-    if not size or max((bundle / name).stat().st_size for name in ('boot.img', 'installer.img')) > int(size[1], 16):
+    def partition_size(name):
+        match = re.search(r'partition-size:' + re.escape(name) + r':\s*(0x[0-9a-fA-F]+)',
+                          fastboot('getvar', 'partition-size:' + name))
+        if not match:
+            raise RuntimeError('Cannot determine partition size: ' + name)
+        return int(match[1], 16)
+
+    if partition_size('userdata') != 471789528 * 512:
+        parser.error('unsupported userdata size; only the known 256 GB layout is admitted')
+    if max((bundle / name).stat().st_size for name in ('boot.img', 'installer.img')) > partition_size('boot_a'):
         parser.error('boot image exceeds the reported boot partition size')
     server = None
     try:
