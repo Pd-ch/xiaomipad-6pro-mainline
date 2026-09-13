@@ -52,9 +52,9 @@ python3 tools/install-liuqin.py --bundle out/image/bundle --check
 ```
 
 The workflow does not create a public Release or mark a bundle device-tested.
-GitHub execution still requires publishing the repositories and configuring the
-runner. Installation and Android recovery must be tested on the final candidate
-before a supported installation version is published.
+Full-image CI requires a configured dedicated runner. Test installation on the
+final candidate before marking a bundle device-tested; report Android recovery
+separately and do not claim it is validated by a successful Ubuntu installation.
 
 ## Public Delivery
 
@@ -63,10 +63,11 @@ not another repository, the source Git tree or Git LFS. Actions artifacts are
 temporary build results, not supported installation releases.
 
 GitHub [limits each Release asset to under 2 GiB](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
-The current desktop archive exceeds that limit. Public delivery therefore needs
-versioned parts (for example 1 GiB each), checksums and installer-managed joining
-and verification. This Release transport step is not implemented yet; the local
-test bundle currently contains an unsplit rootfs archive.
+The release export stage splits the desktop archive into parts below that limit
+without rebuilding the images. Upload every file in `out/image/release-assets/`.
+Users join the parts as described in the bundled installation instructions;
+the installer verifies the joined archive before installation. See
+[Release assets](BUILD.md#release-assets) for the export command.
 
 Required board firmware is included in the assembled system and boot images.
 A matching firmware package may also be attached for builders, without another

@@ -68,7 +68,8 @@ complete toolchain and build inputs.
 
 Builders download upstream inputs and assemble the system. Installation users use
 matching finished artifacts without compiling components or finding dependencies
-individually. Installation releases are not yet available.
+individually. Download installation bundles from [GitHub Releases](https://github.com/yzddmr6/xiaomipad-6pro-mainline/releases)
+and observe each release's tested scope and limitations.
 
 ### Ubuntu Base
 
