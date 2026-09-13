@@ -25,3 +25,8 @@ jobs:
         run: |
           python3 tests/installer.py
           sudo python3 tests/rootfs-archive.py
+      - name: Sensor startup policy
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y bubblewrap
+          sudo python3 tests/sensor-startup.py

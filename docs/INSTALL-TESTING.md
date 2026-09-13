@@ -40,6 +40,20 @@ the host's USB address when automatic route selection is unsuitable. If the
 installer cannot establish its control channel it stops; do not blindly retry
 after a partial installation. Preserve the error output and backup first.
 
+## Desktop Diagnostics
+
+On the tablet, enable the rescue shell with:
+
+```sh
+sudo liuqin-rescue on
+```
+
+Check it with `liuqin-rescue status`. This grants unauthenticated root access
+at `192.168.7.2:2323` and remains enabled across boots. Use only a trusted
+connection; do not expose or forward this port to other networks. After
+diagnostics, run `sudo liuqin-rescue off` on the tablet to disable it and
+close existing rescue connections. Release images leave it disabled by default.
+
 ## Recovery
 
 Returning to Android erases the Ubuntu installation and requires a compatible

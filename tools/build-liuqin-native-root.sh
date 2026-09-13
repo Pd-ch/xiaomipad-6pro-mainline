@@ -185,6 +185,7 @@ END {
 	}
 	link_unit basic.target.requires liuqin-gnome-storage-guard.service
 	link_unit multi-user.target.wants liuqin-gnome-usb-rescue.service
+	link_unit multi-user.target.wants liuqin-slpi.service
 	link_unit multi-user.target.wants liuqin-power-keyd.service
 	link_unit graphical.target.wants liuqin-backlight-default.service
 	# liuqin-hide-gunyah-node.service ships in the deb but stays unwired:
@@ -229,6 +230,7 @@ END {
 	for exe in \
 		/usr/lib/systemd/systemd /usr/sbin/gdm3 /usr/bin/gnome-shell \
 		/usr/bin/hexagonrpcd \
+		/usr/local/sbin/liuqin-slpi \
 		/usr/local/bin/busybox /usr/local/bin/liuqin-shell \
 		/usr/libexec/iio-sensor-proxy \
 		/usr/local/sbin/liuqin-gnome-storage-guard \
@@ -250,6 +252,7 @@ END {
 		/etc/systemd/system/bluetooth.service.d/20-liuqin-public-address.conf \
 		/etc/systemd/system/liuqin-bt-preconfigure.service \
 		/etc/systemd/system/liuqin-hexagonrpcd-sdsp.service \
+		/etc/systemd/system/liuqin-slpi.service \
 		/etc/systemd/system/liuqin-ssc-sample-gate.service \
 		/etc/systemd/system/liuqin-sensor-stack.target \
 		/etc/systemd/system/liuqin-wlan-mac.service \

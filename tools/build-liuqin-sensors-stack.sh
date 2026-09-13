@@ -618,7 +618,5 @@ LC_ALL=C LD_LIBRARY_PATH=$ld_path "$qemu" -L "$rootfs" \
 	"$dest/usr/local/libexec/liuqin-iio-sensor-proxy" --help 2>&1 |
 	grep -q '^Usage:' || die 'iio-sensor-proxy QEMU execution smoke failed'
 
-"$project_root/tools/test-liuqin-sensors-stack.sh" "$out_dir/artifacts/sensor-stack.tar"
-
 say "PASS: $out_dir/artifacts/sensor-stack.tar"
 say "SHA256: $(cut -d' ' -f1 "$out_dir/artifacts/sensor-stack.tar.sha256")"

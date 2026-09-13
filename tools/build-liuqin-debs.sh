@@ -42,7 +42,7 @@ power_settings_sha256=${POWER_SETTINGS_SHA256:-}
 power_settings_manifest=${POWER_SETTINGS_MANIFEST:-"$project_root/out/gnome-control-center/build-info.json"}
 # SENSOR_STACK_SHA256 selects the sensor build to include in this package set.
 sensor_stack=${SENSOR_STACK_TAR:-"$project_root/out/liuqin-sensors-stack/artifacts/sensor-stack.tar"}
-sensor_stack_sha256=${SENSOR_STACK_SHA256:-9bb4e5a4ec969d39bb194e0504cd03bd4392637b18c4e643d0483a89e3152d2e}
+sensor_stack_sha256=${SENSOR_STACK_SHA256:-9dcb2b8cb3a6539ccd6d2b410476f3e6ebc725072a3b63089a570ebdaeec5701}
 webkit_env=etc/environment.d/50-liuqin-dmabuf.conf
 webkit_env_sha256=1db6b589d305556a976c72b20500d9e932650eb090ba845052a0b8f659bdcca5
 

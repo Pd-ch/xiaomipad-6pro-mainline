@@ -93,6 +93,8 @@ PINNED_PATHS = (
 # are intentionally absent: they must not decide whether the system boots.
 NATIVE_PINNED_PATHS = (
     "/etc/liuqin-native-root",
+    "/etc/systemd/system/liuqin-slpi.service",
+    "/usr/local/sbin/liuqin-slpi",
     "/etc/dconf/db/local.d/locks/00-liuqin-power",
     "/etc/systemd/system/NetworkManager.service.d/20-liuqin-wlan-mac.conf",
     "/etc/systemd/system/bluetooth.service.d/20-liuqin-public-address.conf",
