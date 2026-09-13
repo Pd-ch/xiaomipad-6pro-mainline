@@ -3,6 +3,7 @@
 """Check SLPI lifecycle policy without accessing a real remote processor."""
 import configparser
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 
@@ -19,6 +20,9 @@ assert 'qcom_q6v5_pas.slpi_auto_boot=0' in (
 
 with tempfile.TemporaryDirectory() as directory:
     root = Path(directory)
+    # Namespace root cannot traverse a runner-owned private home directory.
+    sandbox_helper = root / 'liuqin-slpi'
+    shutil.copyfile(helper, sandbox_helper)
     remote = root / 'remoteproc/remoteproc7'
     remote.mkdir(parents=True)
     (remote / 'name').write_text('slpi\n')
@@ -39,7 +43,7 @@ with tempfile.TemporaryDirectory() as directory:
                '--tmpfs', '/var', '--dir', '/var/lib',
                '--bind', str(root / 'sensors'), '/var/lib/liuqin-sensors',
                '--tmpfs', '/tmp', '--ro-bind', str(binaries), '/tmp/bin',
-               '--ro-bind', str(helper), '/tmp/liuqin-slpi',
+               '--ro-bind', str(sandbox_helper), '/tmp/liuqin-slpi',
                '--setenv', 'PATH', '/tmp/bin:/usr/bin:/bin']
 
     def invoke(action, state, expected, success=True):
