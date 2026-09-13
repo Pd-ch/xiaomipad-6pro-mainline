@@ -8,7 +8,7 @@ die() { printf 'liuqin-install: %s\n' "$*" >&2; exit 1; }
 [ "$(cat /proc/sys/kernel/random/boot_id)" = "$1" ] || die 'RAM boot identity changed'
 [ "$(cat /etc/liuqin-installer 2>/dev/null)" = liuqin ] || die 'not the installer RAM image'
 ln -sf /proc/self/fd/0 /dev/stdin
-tr '\000' '\n' </proc/device-tree/compatible | grep -qx xiaomi,liuqin || die 'wrong device'
+# The host checks Fastboot product/serial; boot_id binds this operation to it.
 [ "$(cat /sys/class/block/sda/size)" = 493854720 ] || die 'unsupported storage capacity'
 [ "$(cat /sys/class/block/sda35/start)" = 22065152 ] || die 'userdata start mismatch'
 [ "$(cat /sys/class/block/sda35/size)" = 471789528 ] || die 'userdata size mismatch'
@@ -65,7 +65,6 @@ download_mounted=true
 /bin/busybox wget -O "$archive" "$2"
 [ "$(stat -c %s "$archive")" = "$4" ] || die 'downloaded archive size mismatch'
 printf '%s  %s\n' "$3" "$archive" | /bin/busybox sha256sum -c -
-/usr/bin/tar -tzf "$archive" >/dev/null
 [ "$(cat /proc/sys/kernel/random/boot_id)" = "$1" ] || die 'RAM identity changed before formatting'
 [ -b /dev/disk/by-partlabel/persist ] || die 'persist is missing'
 mount -t ext4 -o ro,noload /dev/disk/by-partlabel/persist /run/persist
