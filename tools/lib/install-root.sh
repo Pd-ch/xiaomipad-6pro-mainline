@@ -81,7 +81,7 @@ mount -t ext4 /dev/sda35 /mnt/install
 mounted=true
 mkdir /mnt/install/native-root
 /usr/bin/tar -xzf "$archive" -C /mnt/install/native-root \
-	--numeric-owner --same-owner --same-permissions --acls --xattrs --xattrs-include='*'
+	--numeric-owner --same-owner --same-permissions --acls --xattrs --xattrs-include='*' --warning=no-timestamp
 PERSIST_SRC=/run/persist sh /usr/lib/liuqin/provision.sh /mnt/install/native-root
 [ -n "$(/usr/sbin/getcap /mnt/install/native-root/usr/lib/snapd/snap-confine)" ] ||
 	die 'snap-confine capability was not restored'

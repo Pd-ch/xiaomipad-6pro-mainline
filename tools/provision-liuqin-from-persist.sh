@@ -63,24 +63,31 @@ raw=$(sed -n 's/^wlan0=\([0-9A-Fa-f]\{12\}\).*/\1/p' "$mnt/wlan/wlan_mac.bin" | 
 [ -n "$raw" ] || die 'wlan_mac.bin does not carry a wlan0= entry'
 wlan_mac=$(printf '%s' "$raw" | tr 'A-F' 'a-f' |
 	sed 's/\(..\)\(..\)\(..\)\(..\)\(..\)\(..\)/\1:\2:\3:\4:\5:\6/')
-install -d -m 0700 "$tgt/var/lib/liuqin-private"
-printf '%s\n' "$wlan_mac" | install -m 0600 -o root -g root /dev/stdin "$tgt/var/lib/liuqin-private/wlan-mac"
+mkdir -p "$tgt/var/lib/liuqin-private"
+chmod 0700 "$tgt/var/lib/liuqin-private"
+printf '%s\n' "$wlan_mac" >"$tgt/var/lib/liuqin-private/wlan-mac"
+chmod 0600 "$tgt/var/lib/liuqin-private/wlan-mac"
+chown 0:0 "$tgt/var/lib/liuqin-private" "$tgt/var/lib/liuqin-private/wlan-mac"
 
 # --- Bluetooth address (6 raw bytes, in order) -------------------------------
 bt_hex=$(od -An -tx1 -N6 "$mnt/bluetooth/.bt_nv.bin" | tr -d ' \n')
 [ ${#bt_hex} -eq 12 ] || die "bt_nv.bin is not 6 bytes: $bt_hex"
 bt_addr=$(printf '%s' "$bt_hex" | sed 's/\(..\)\(..\)\(..\)\(..\)\(..\)\(..\)/\1:\2:\3:\4:\5:\6/')
-printf '%s\n' "$bt_addr" | install -m 0600 -o root -g root /dev/stdin "$tgt/var/lib/liuqin-private/bluetooth-address"
+printf '%s\n' "$bt_addr" >"$tgt/var/lib/liuqin-private/bluetooth-address"
+chmod 0600 "$tgt/var/lib/liuqin-private/bluetooth-address"
+chown 0:0 "$tgt/var/lib/liuqin-private/bluetooth-address"
 
 # --- Cirrus per-channel calibration (4 x 4 bytes, TL TR BL BR) ---------------
 calr_size=$(wc -c <"$mnt/audio/crus_calr.bin" | tr -d ' ')
 [ "$calr_size" = 16 ] || die "crus_calr.bin is not 16 bytes: $calr_size"
-install -d -m 0755 "$tgt/usr/lib/firmware/cirrus"
+mkdir -p "$tgt/usr/lib/firmware/cirrus"
+chmod 0755 "$tgt/usr/lib/firmware/cirrus"
 i=0
 for ch in TL TR BL BR; do
-	dd if="$mnt/audio/crus_calr.bin" bs=4 skip=$i count=1 2>/dev/null |
-		install -m 0600 -o root -g root /dev/stdin \
-			"$tgt/usr/lib/firmware/cirrus/cs35l41-liuqin-$ch-calr.bin"
+	calr="$tgt/usr/lib/firmware/cirrus/cs35l41-liuqin-$ch-calr.bin"
+	dd if="$mnt/audio/crus_calr.bin" of="$calr" bs=4 skip=$i count=1 2>/dev/null
+	chmod 0600 "$calr"
+	chown 0:0 "$calr"
 	i=$((i + 1))
 done
 
@@ -88,17 +95,20 @@ done
 nf_uid=$(awk -F: '$1=="fastrpc"{print $3}' "$tgt/etc/passwd")
 nf_gid=$(awk -F: '$1=="fastrpc"{print $3}' "$tgt/etc/group")
 [ -n "$nf_uid" ] && [ -n "$nf_gid" ] || die 'fastrpc uid/gid not resolvable in the target root'
-install -d -m 0750 -o "$nf_uid" -g "$nf_gid" "$tgt/var/lib/liuqin-sensors/registry"
+mkdir -p "$tgt/var/lib/liuqin-sensors/registry"
+chmod 0750 "$tgt/var/lib/liuqin-sensors/registry"
+chown "$nf_uid:$nf_gid" "$tgt/var/lib/liuqin-sensors/registry"
 count=0
 for f in "$mnt/sensors/registry/registry/"*; do
 	[ -f "$f" ] || continue
-	install -m 0640 -o "$nf_uid" -g "$nf_gid" "$f" "$tgt/var/lib/liuqin-sensors/registry/"
+	cp "$f" "$tgt/var/lib/liuqin-sensors/registry/"
+	chmod 0640 "$tgt/var/lib/liuqin-sensors/registry/$(basename "$f")"
 	count=$((count + 1))
 done
 [ "$count" -gt 100 ] || die "suspiciously few registry files: $count"
 ( cd "$tgt/var/lib/liuqin-sensors/registry" && find . -maxdepth 1 -type f ! -name SHA256SUMS -print |
 	LC_ALL=C sort | xargs sha256sum ) >"$tgt/var/lib/liuqin-sensors/registry/SHA256SUMS"
-chown "$nf_uid:$nf_gid" "$tgt/var/lib/liuqin-sensors/registry/SHA256SUMS"
+chown "$nf_uid:$nf_gid" "$tgt/var/lib/liuqin-sensors/registry/"*
 chmod 0640 "$tgt/var/lib/liuqin-sensors/registry/SHA256SUMS"
 
 say "wlan=$wlan_mac bt=$bt_addr calr=4ch registry=$count -> $tgt"
