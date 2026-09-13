@@ -33,26 +33,67 @@ Prebuilt installation bundles will accompany project releases, with matching boo
 
 ## Hardware Support
 
-The table describes the current port. Complete installation images still require release validation.
+This describes the current Xiaomi Pad 6 Pro (liuqin) port, not acceptance of the new
+installation bundle. Component identities come from confirmed board information
+and device trees; other batches, capacities and accessory combinations are not implied tested.
 
-| Feature | Support | Details |
-|---|---|---|
-| Display | Working | 2880 x 1800, 120 Hz |
-| Touchscreen | Working | Touch input and gestures |
-| GPU | Working | Adreno 730, Freedreno; some applications need rendering workarounds |
-| Wi-Fi | Working | 2.4 GHz and 5 GHz connections |
-| Bluetooth | Partial | Controller initialization and scanning; pairing and reconnection need further testing |
-| Speakers | Working | Four speakers; factory calibration is read from each tablet; audio tuning remains in progress |
-| Magnetic keyboard | Working | Character keys, volume keys and reattachment |
-| Automatic rotation | Partial | Rotation demonstrated; startup and login reliability still need final validation |
-| Power and volume keys | Working | Screen control, power menu and volume adjustment |
-| Charging | Partial | Basic charging; Xiaomi proprietary fast charging is not supported |
-| Suspend / resume | Partial | Basic resume demonstrated; peripheral recovery and deep-sleep power use need further testing |
-| H.264 hardware decoding | Working | Iris / V4L2 decoding; browser integration and other codecs are not validated |
-| Automatic brightness | Not supported | Automatic brightness control is not implemented |
-| Cameras | Not supported | No working camera integration |
-| Microphone | Not validated | Recording has not been verified |
-| Stylus | Not validated | Pen input has not been verified |
+✅ Working · 🟡 Partial · ❌ Unsupported · 🧪 Unverified
+
+### Platform, Display and Input
+
+| Feature | Component / Implementation | Status | Scope and Limitations |
+|---|---|---|---|
+| SoC / CPU | Qualcomm Snapdragon 8+ Gen 1 (SM8475), ARM64 | ✅ Working | Kernel boot and Ubuntu desktop; not all power states are validated |
+| GPU / compositing | Adreno 730 / Freedreno / Mesa | ✅ Working | Desktop acceleration; some applications need rendering workarounds |
+| Internal storage | UFS / ext4 | ✅ Working | Persistent system and packages; installer targets the known 256 GB layout only |
+| Display | Novatek NT36532 / dual DSI / DSC | ✅ Working | 2880 x 1800 at 120 Hz; other refresh rates are not individually tested |
+| Manual brightness | Kinetic KTZ8866 backlight | ✅ Working | Backlight and manual brightness adjustment |
+| Touchscreen | Novatek NT36532 / SPI | ✅ Working | Touch input, swipes and gestures |
+| Magnetic keyboard | Nanosic WN8030 | ✅ Working | Character and volume keys, reattachment; suspend recovery not fully covered |
+| Stylus | NVTCapacitivePen input interface | 🧪 Unverified | Coordinates, pressure, buttons and input after wake not tested |
+| Hall switches | GPIO / SW_LID / SW_TABLET_MODE | 🟡 Partial | Switch states are readable; cover-close and open-to-wake policies not fully validated |
+
+### Wireless and USB
+
+| Feature | Component / Implementation | Status | Scope and Limitations |
+|---|---|---|---|
+| Wi-Fi 2.4 GHz | Qualcomm QCA6490 / ath11k | ✅ Working | Wireless connection and everyday networking |
+| Wi-Fi 5 GHz | QCA6490, supported as WCN6855 family | ✅ Working | 5 GHz connections verified; no peak-throughput claim |
+| Wi-Fi hotspot / AP | NetworkManager / ath11k | 🧪 Unverified | Confirmed networking scope is client mode |
+| Bluetooth | QCA6490 / hci_qca / BlueZ | ✅ Working | Everyday Bluetooth functionality is usable |
+| USB 2.0 device mode | Synopsys DWC3 / NXP eUSB2 repeater | ✅ Working | USB NCM networking and transfer; High-Speed device mode |
+| USB reconnect after charging | USB-C / USB gadget | 🟡 Partial | Reconnection reliability after charger switching remains unresolved |
+| USB 3.x SuperSpeed | USB controller / PHY | ❌ Unsupported | Current configuration is restricted to USB 2.0 High-Speed |
+| USB OTG / host mode | USB-C data-role switching | ❌ Unsupported | Fixed to peripheral mode; USB drives, keyboards and docks are not promised |
+| USB-C external display | Video output / docks | 🧪 Unverified | External-monitor output has not been tested |
+
+### Audio, Video and Sensors
+
+| Feature | Component / Implementation | Status | Scope and Limitations |
+|---|---|---|---|
+| Four speakers | 4 × Cirrus Logic CS35L41 / AudioReach | ✅ Working | Stereo playback and volume control with per-device calibration; tuning continues |
+| Internal microphone | DMIC / Qualcomm capture path | ❌ Unsupported | No working recording integration |
+| H.264 hardware decoding | Qualcomm Iris2 / V4L2 | ✅ Working | Userspace decoding verified; not evidence of browser integration |
+| Other decoding formats | Iris / V4L2 | 🧪 Unverified | HEVC, VP9 and other formats not individually validated |
+| Browser hardware decoding | Browser / V4L2 integration | 🧪 Unverified | Video playback alone does not prove hardware decoding |
+| Hardware encoding | Qualcomm video engine | 🧪 Unverified | Hardware encoding workflows not tested |
+| Front and rear cameras | Qualcomm CAMSS / camera sensors | ❌ Unsupported | No working capture or application integration |
+| Accelerometer / auto-rotation | SLPI / SSC / iio-sensor-proxy | ✅ Working | Greeter and desktop rotation verified; the new bundle still needs regression testing |
+| Gyroscope / magnetometer | SSC sensor path | 🧪 Unverified | Application-usable measurements not confirmed by accelerometer support |
+| Ambient light sensor | SSC light-sensor path | 🧪 Unverified | Real light measurements not fully validated |
+| Automatic brightness | Desktop brightness policy | ❌ Unsupported | Automatic brightness control not integrated |
+
+### Power and Time
+
+| Feature | Component / Implementation | Status | Scope and Limitations |
+|---|---|---|---|
+| Power / volume keys | Qualcomm PMIC / GPIO input | ✅ Working | Screen on/off, power menu and volume; password-lock authentication not separately tested |
+| Battery / basic charging | qcom_battmgr / UPower | ✅ Working | Capacity reporting, charging state and basic wall charging |
+| Computer USB power | USB power path | 🟡 Partial | Limited supply power; heavy workloads may still discharge the battery |
+| Xiaomi proprietary fast charging | Vendor charging protocol | ❌ Unsupported | Fast charging is not integrated; no stock charging-power claim |
+| Charging while powered off | Boot-stage charging hold | 🟡 Partial | No complete charging display; use a long power-key press to boot while charging |
+| Suspend / resume | Linux power management | 🟡 Partial | Basic resume verified; peripheral recovery and deep-sleep power need further testing |
+| RTC / offline time retention | Qualcomm PMK8350 RTC | 🧪 Unverified | Network time synchronization works; offline writes and power-loss retention are not guaranteed |
 
 ## Usage and Maintenance
 

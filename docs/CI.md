@@ -70,6 +70,10 @@ test bundle currently contains an unsplit rootfs archive.
 
 Required board firmware is included in the assembled system and boot images.
 A matching firmware package may also be attached for builders, without another
-firmware repository. Upstream Ubuntu images, unmodified upstream components and
+firmware repository. Small, stable, generic firmware binaries may also be tracked
+under `device/firmware/` with their provenance, hashes and applicable notices;
+this is an allowed layout, not a claim that all firmware is already imported.
+Keep one authoritative copy and avoid repeatedly committing large binary sets.
+Upstream Ubuntu images, unmodified upstream components and
 full stock ROMs are not mirrored here. Per-device calibration and addresses are
 always obtained from the user's own tablet and are never Release assets.
