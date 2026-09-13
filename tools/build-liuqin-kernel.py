@@ -97,7 +97,7 @@ def main():
             return
         cc = ('ccache ' if shutil.which('ccache') else '') + compiler
         maps = f'-ffile-prefix-map={source}=/build/linux -ffile-prefix-map={out}=/build/kernel'
-        subprocess.run(make + ['-j' + str(args.jobs), 'CC=' + cc, 'KCFLAGS=' + maps,
+        subprocess.run(make + ['-j' + str(args.jobs), 'CC=' + cc, 'KCFLAGS=' + maps, 'KAFLAGS=' + maps,
                                'Image', lock['dtb'], 'modules'], env=env, check=True)
         subprocess.run(make + ['modules_install', 'INSTALL_MOD_PATH=' + str(out / 'modules')],
                        env=env, check=True)
