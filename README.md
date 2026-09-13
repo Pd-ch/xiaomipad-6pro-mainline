@@ -78,7 +78,7 @@ and device trees; other batches, capacities and accessory combinations are not i
 | Browser hardware decoding | Browser / V4L2 integration | 🧪 Unverified | Video playback alone does not prove hardware decoding |
 | Hardware encoding | Qualcomm video engine | 🧪 Unverified | Hardware encoding workflows not tested |
 | Front and rear cameras | Qualcomm CAMSS / camera sensors | ❌ Unsupported | No working capture or application integration |
-| Accelerometer / auto-rotation | SLPI / SSC / iio-sensor-proxy | ✅ Working | Greeter and desktop rotation verified; the new bundle still needs regression testing |
+| Accelerometer / auto-rotation | SLPI / SSC / iio-sensor-proxy | 🟡 Partial | Rotation failures remain in the current installation during first login or with the magnetic keyboard; a fix is not yet validated |
 | Gyroscope / magnetometer | SSC sensor path | 🧪 Unverified | Application-usable measurements not confirmed by accelerometer support |
 | Ambient light sensor | SSC light-sensor path | 🧪 Unverified | Real light measurements not fully validated |
 | Automatic brightness | Desktop brightness policy | ❌ Unsupported | Automatic brightness control not integrated |
