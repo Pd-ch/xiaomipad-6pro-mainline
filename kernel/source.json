@@ -4,14 +4,15 @@
   "upstream_url": "https://github.com/sm8450-mainline/linux.git",
   "upstream_base": "a19585977c11fa662435b607cb9ff4ac7133092e",
   "commit": "a54c2b5501a7add99229dd82dff27f184c1bed91",
-  "config_sha256": "94ef896aee8f8b560d11b5cb6b3fdf5ce5bd6800cf83795880f768aa1aef678a",
+  "config_sha256": "72689c8a48450b41ab27e0e7f16ff63ecfa30b4b7f3dd655fb7abe930ada80af",
   "config_fragments": [
     "device/configs/liuqin-firstboot.config",
     "device/configs/liuqin-snap.config",
     "device/configs/liuqin-desktop.config",
     "device/configs/liuqin-desktop-compat.config",
     "device/configs/liuqin-sensors.config",
-    "device/configs/liuqin-keyboard.config"
+    "device/configs/liuqin-keyboard.config",
+    "device/configs/liuqin-waydroid.config"
   ],
   "dtb": "qcom/sm8475-xiaomi-liuqin.dtb"
 }
