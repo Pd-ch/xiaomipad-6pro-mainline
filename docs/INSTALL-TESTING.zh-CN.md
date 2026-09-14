@@ -6,7 +6,8 @@
 
 ## 准备
 
-- Xiaomi Pad 6 Pro（liuqin），256 GB 存储布局；其他容量会被拒绝。
+- Xiaomi Pad 6 Pro（liuqin），已知的 256 GB 或 512 GB 存储布局；其他容量会被拒绝。
+  512 GB 布局尚未完成首次安装与首启验收。
 - Bootloader 已解锁，A 槽处于活动状态，平板进入 Fastboot，电量至少 30%。
 - Linux 主机、Python 3.11 或更新版本、Android platform-tools，以及正常的 USB 网络支持。
 - 个人文件已备份到平板以外；安装会清空整个 userdata，安装器不会备份个人文件。

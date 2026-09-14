@@ -110,8 +110,9 @@ def main():
             raise RuntimeError('Cannot determine partition size: ' + name)
         return int(match[1], 16)
 
-    if partition_size('userdata') != 471789528 * 512:
-        parser.error('unsupported userdata size; only the known 256 GB layout is admitted')
+    userdata_size = partition_size('userdata')
+    if userdata_size not in (471789528 * 512, 971632600 * 512):
+        parser.error('unsupported userdata size; only the known 256 GB and 512 GB layouts are admitted')
     if max((bundle / name).stat().st_size for name in ('boot.img', 'installer.img')) > partition_size('boot_a'):
         parser.error('boot image exceeds the reported boot partition size')
     server = None

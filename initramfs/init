@@ -155,11 +155,14 @@ storage_identity_ok() {
 	[ "$("$BB" readlink -f "$storage_parent" 2>/dev/null || true)" = "$storage_parent" ] || return 1
 	[ "$("$BB" readlink -f "$storage_target" 2>/dev/null || true)" = "$storage_target" ] || return 1
 
-	[ "$(storage_value "$storage_sys_block/sda/size" 2>/dev/null || true)" = 493854720 ] || return 1
+	storage_layout=$(storage_value "$storage_sys_block/sda/size" 2>/dev/null || true):$(storage_value "$storage_sys_block/sda35/size" 2>/dev/null || true)
+	case $storage_layout in
+		493854720:471789528|993697792:971632600) ;;
+		*) return 1 ;;
+	esac
 	[ "$(storage_value "$storage_sys_block/sda/queue/logical_block_size" 2>/dev/null || true)" = 4096 ] || return 1
 	[ "$(storage_value "$storage_sys_block/sda35/partition" 2>/dev/null || true)" = 35 ] || return 1
 	[ "$(storage_value "$storage_sys_block/sda35/start" 2>/dev/null || true)" = 22065152 ] || return 1
-	[ "$(storage_value "$storage_sys_block/sda35/size" 2>/dev/null || true)" = 471789528 ] || return 1
 	[ "$(storage_uevent_value PARTNAME "$storage_sys_block/sda35/uevent" 2>/dev/null || true)" = userdata ] || return 1
 
 	storage_label_path=$("$BB" findfs LABEL=LIUQIN_ROOT 2>/dev/null || true)

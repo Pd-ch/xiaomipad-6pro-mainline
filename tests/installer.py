@@ -33,7 +33,7 @@ with tempfile.TemporaryDirectory() as directory:
     (root / 'boot.img').write_bytes(b'boot.img')
     (root / 'bundle.json').write_text(json.dumps({'device': 'liuqin', 'files': files,
                                                'status': 'OFFLINE_ASSEMBLED'}))
-    for reported in ('0x100000', hex(471789528 * 512 + 512), 'unknown'):
+    for reported in ('0x100000', hex(471789528 * 512 + 512), hex(971632600 * 512 + 512), 'unknown'):
         calls = []
 
         def fastboot(command, **kwargs):

@@ -12,16 +12,19 @@ The system archive may be split into several files; the guide includes the joini
 Xiaomi Pad 6 Pro, codename `liuqin`, SM8475. Other Xiaomi Pad models are not
 compatible. Initial installation and first boot have been tested on one known
 **256 GB partition layout**. Android recovery has not yet been independently validated.
-128 GB, 512 GB, other capacities, modified layouts and slot-B installation are
+The installer now also admits one known **512 GB partition layout**, added from a
+device readout but not yet validated through a full installation and first boot.
+128 GB, other capacities, modified layouts and slot-B installation are
 unverified and unsupported. Equal capacity does not imply equal layout. Do not
 change constants or bypass checks to force an installation.
 
 The bootloader must be unlocked and slot A active. Device-side checks require
-Linux sysfs values of 493854720 sectors for sda, start 22065152 and size 471789528
-for sda35, and partition name userdata. These counts use 512-byte sectors, not
-filesystem block sizes. Unknown or mismatching device, layout, slot or session
-identity must stop installation. Checks reduce risk but do not guarantee recovery
-or replace real installation testing.
+Linux sysfs values of 493854720 sectors for sda with size 471789528 for sda35
+(256 GB), or 993697792 sectors for sda with size 971632600 for sda35 (512 GB).
+In both layouts the sda35 start is 22065152 and the partition name is userdata.
+These counts use 512-byte sectors, not filesystem block sizes. Unknown or
+mismatching device, layout, slot or session identity must stop installation.
+Checks reduce risk but do not guarantee recovery or replace real installation testing.
 
 ## Data and Recovery
 

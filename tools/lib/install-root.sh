@@ -11,9 +11,11 @@ case $rescue in ''|ENABLE-USB-RESCUE) ;; *) die 'unsupported rescue option' ;; e
 [ "$(cat /etc/liuqin-installer 2>/dev/null)" = liuqin ] || die 'not the installer RAM image'
 ln -sf /proc/self/fd/0 /dev/stdin
 # The host checks Fastboot product/serial; boot_id binds this operation to it.
-[ "$(cat /sys/class/block/sda/size)" = 493854720 ] || die 'unsupported storage capacity'
+case "$(cat /sys/class/block/sda/size):$(cat /sys/class/block/sda35/size)" in
+493854720:471789528|993697792:971632600) ;;
+*) die 'unsupported storage layout; only the known 256 GB and 512 GB layouts are admitted' ;;
+esac
 [ "$(cat /sys/class/block/sda35/start)" = 22065152 ] || die 'userdata start mismatch'
-[ "$(cat /sys/class/block/sda35/size)" = 471789528 ] || die 'userdata size mismatch'
 grep -q '^PARTNAME=userdata$' /sys/class/block/sda35/uevent || die 'not userdata'
 device_number=$(cat /sys/class/block/sda35/dev)
 awk -v device="$device_number" '$3 == device {found=1} END {exit !found}' /proc/self/mountinfo &&

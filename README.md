@@ -10,7 +10,7 @@ Usage tips, AI discussions and community exchange, primarily in Chinese. [中文
 This project is only for the **Xiaomi Pad 6 Pro (liuqin, SM8475)**. Other Xiaomi Pad models are not compatible.
 
 - **Data loss**: unlocking the bootloader and performing an initial installation erase user data. Back up your files first.
-- **Storage and layout**: installation has been tested on one known **256 GB partition layout**, not every 256 GB device. Other capacities, modified partition layouts and slot-B installation are unverified and unsupported. Do not bypass the checks.
+- **Storage and layout**: installation has been tested on one known **256 GB partition layout**, not every 256 GB device. The installer also admits one known **512 GB partition layout** taken from a device readout, which has not yet been validated through a full installation and first boot. 128 GB, other capacities, modified partition layouts and slot-B installation are unverified and unsupported. Do not bypass the checks.
 - **Validation scope**: initial installation, first boot, rotation, touch, the magnetic keyboard and audio have been tested. Android recovery still requires separate device validation.
 - **Installation layout**: Ubuntu is installed as the sole operating system. Android dual boot is not provided.
 - **Recovery preparation**: obtain the matching stock firmware and read the [data and recovery instructions](docs/FLASHING.md#data-and-recovery) before installing.

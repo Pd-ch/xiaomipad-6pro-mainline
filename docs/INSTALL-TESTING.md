@@ -5,7 +5,9 @@ This remains an experimental device port. Keep the tablet attended and prepare a
 
 ## Requirements
 
-- Xiaomi Pad 6 Pro (liuqin), 256 GB layout. Other capacities are rejected.
+- Xiaomi Pad 6 Pro (liuqin), known 256 GB or 512 GB layout. Other capacities are
+  rejected. The 512 GB layout has not yet been validated through a full
+  installation and first boot.
 - Unlocked bootloader, slot A active, and the device in Fastboot mode.
 - Battery at least 30 percent charged.
 - Linux host with Python 3.11 or newer, Android platform-tools and USB networking.
